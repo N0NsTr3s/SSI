@@ -1,0 +1,62 @@
+;
+; KEDRTE.inf
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System ; TODO: specify appropriate Class
+ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318} ; TODO: specify appropriate ClassGuid
+Provider    = %ManufacturerName%
+CatalogFile = KEDRTE.cat
+DriverVer = 09/14/2024,0.36.51.701
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+KEDRTE.sys = 1,,
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName% = Standard,NTamd64.10.0...16299 ; %13% support introduced in build 16299
+
+[Standard.NTamd64.10.0...16299]
+%KEDRTE.DeviceDesc% = KEDRTE_Device, Root\KEDRTE ; TODO: edit hw-id
+
+[KEDRTE_Device.NT]
+CopyFiles = File_Copy
+
+[File_Copy]
+KEDRTE.sys
+
+;-------------- Service installation
+[KEDRTE_Device.NT.Services]
+AddService = KEDRTE,%SPSVCINST_ASSOCSERVICE%, KEDRTE_Service_Inst
+
+; -------------- KEDRTE driver install sections
+[KEDRTE_Service_Inst]
+DisplayName    = %KEDRTE.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %13%\KEDRTE.sys
+
+[KEDRTE_Device.NT.Wdf]
+KmdfService = KEDRTE, KEDRTE_wdfsect
+
+[KEDRTE_wdfsect]
+KmdfLibraryVersion = 1.15
+
+[Strings]
+SPSVCINST_ASSOCSERVICE = 0x00000002
+ManufacturerName = "<Your manufacturer name>" ;TODO: Replace with your manufacturer name
+DiskName = "KEDRTE Installation Disk"
+KEDRTE.DeviceDesc = "KEDRTE Device"
+KEDRTE.SVCDESC = "KEDRTE Service"
