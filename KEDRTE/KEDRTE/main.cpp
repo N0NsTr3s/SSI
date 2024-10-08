@@ -1,12 +1,22 @@
 #include "hook.h"
 
-
-extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT driver_object, PUNICODE_STRING reg_path)
+extern "C"
 {
-	UNREFERENCED_PARAMETER(driver_object);
-	UNREFERENCED_PARAMETER(reg_path);
+    DRIVER_INITIALIZE DriverEntry;
+}
 
-	call_kernel_function(&hook_handler);
-	 
-	return STATUS_SUCCESS;
+NTSTATUS DriverEntry(PDRIVER_OBJECT driver_object, PUNICODE_STRING reg_path)
+{
+    UNREFERENCED_PARAMETER(driver_object);
+    UNREFERENCED_PARAMETER(reg_path);
+
+    DbgPrint("Driver entry initiated.\n");
+
+    if (!call_kernel_function(&hook_handler)) {
+        DbgPrint("call_kernel_function failed.\n");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    DbgPrint("Driver entry successful.\n");
+    return STATUS_SUCCESS;
 }

@@ -1,11 +1,13 @@
 ﻿  Building 'KEDRTE' with toolset 'WindowsKernelModeDriver10.0' and the 'Universal' target platform.
   Stamping x64\Release\KEDRTE.inf
-  Stamping [Version] section with DriverVer=09/14/2024,0.36.51.701
+  Stamping [Version] section with DriverVer=10/08/2024,23.0.23.881
   definitions.cpp
   hook.cpp
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\hook.cpp(51,23): warning C4996: 'ExAllocatePool': ExAllocatePool is deprecated, use ExAllocatePool2.
+C:\Users\Edi\source\repos\KEDRTE\KEDRTE\hook.cpp(92,32): warning C4996: 'ExAllocatePool': ExAllocatePool is deprecated, use ExAllocatePool2.
   main.cpp
   Memory.cpp
+  Running Code Analysis for C/C++...
   Generating Code...
   KEDRTE.vcxproj -> C:\Users\Edi\source\repos\KEDRTE\x64\Release\KEDRTE.sys
   Driver is 'Universal'.
+C:\Users\Edi\source\repos\KEDRTE\KEDRTE\hook.cpp(92): warning C28751: Banned usage of ExAllocatePool and its variants:  ExAllocatePool is a banned API for improved error handling purposes.

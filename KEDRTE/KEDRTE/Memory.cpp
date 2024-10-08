@@ -1,21 +1,23 @@
-#pragma warning ( disable : 4996 4267 6387 6011 )
+#pragma warning (disable : 4996 4267 6387 6011)
 
 #include "Memory.h"
 #include <ntifs.h>
 #include <ntdef.h>
 #include <ntddk.h>
 
-
-
-
+// Function to get system module base by module name
 PVOID get_system_module_base(const char* module_name)
 {
     ULONG bytes = 0;
-    NTSTATUS status = ZwQuerySystemInformation(SystemModuleInformation, NULL, bytes, &bytes);
-    if (!bytes)
+    NTSTATUS status = ZwQuerySystemInformation(SystemModuleInformation, NULL, 0, &bytes);
+    if (status != STATUS_INFO_LENGTH_MISMATCH) {  // Expected failure to get size
         return NULL;
+    }
 
     PRTL_PROCESS_MODULES modules = (PRTL_PROCESS_MODULES)ExAllocatePoolWithTag(NonPagedPool, bytes, 'LULN');
+    if (!modules) {
+        return NULL;
+    }
 
     status = ZwQuerySystemInformation(SystemModuleInformation, modules, bytes, &bytes);
     if (!NT_SUCCESS(status)) {
@@ -33,25 +35,51 @@ PVOID get_system_module_base(const char* module_name)
         }
     }
 
-    ExFreePoolWithTag(modules, 'LULN');
+    ExFreePoolWithTag(modules, 'LULN');  // Always free memory
     return module_base;
 }
 
-PVOID get_system_module_export(const char* module_name, LPCSTR routine_name)
+// Function to get system routine address by name
+PVOID get_system_routine_address(PCWSTR routine_name)
 {
-    PVOID lpModule = get_system_module_base(module_name);
-    if (!lpModule)
-        return NULL;
-
-    return RtlFindExportedRoutineByName(lpModule, routine_name);
+    UNICODE_STRING routineName;
+    RtlInitUnicodeString(&routineName, routine_name);
+    return MmGetSystemRoutineAddress(&routineName);
 }
 
+// Function to get system module export
+PVOID get_system_module_export(LPCWSTR module_name, LPCSTR routine_name)
+{
+    PLIST_ENTRY moduleList = reinterpret_cast<PLIST_ENTRY>(get_system_routine_address(L"PsLoadedModuleList"));
+
+    if (!moduleList) {
+        return NULL;
+    }
+
+    for (PLIST_ENTRY link = moduleList->Flink; link != moduleList; link = link->Flink)
+    {
+        LDR_DATA_TABLE_ENTRY* entry = CONTAINING_RECORD(link, LDR_DATA_TABLE_ENTRY, InLoadOrderModuleList);
+
+        UNICODE_STRING name;
+        RtlInitUnicodeString(&name, module_name);
+
+        if (RtlEqualUnicodeString(&entry->BaseDllName, &name, TRUE))
+        {
+            return (entry->DllBase) ? RtlFindExportedRoutineByName(entry->DllBase, routine_name) : NULL;
+        }
+    }
+
+    return NULL; // Ensure a return value in all code paths
+}
+
+// Function to write memory (generic)
 bool write_memory(void* address, void* buffer, size_t size)
 {
     RtlCopyMemory(address, buffer, size);
     return true;
 }
 
+// Function to write to read-only memory
 bool write_to_read_only_memory(void* address, void* buffer, size_t size)
 {
     PMDL Mdl = IoAllocateMdl(address, size, FALSE, FALSE, NULL);
@@ -71,6 +99,7 @@ bool write_to_read_only_memory(void* address, void* buffer, size_t size)
     return true;
 }
 
+// Function to get module base for x64
 ULONG64 get_module_base_x64(PEPROCESS proc, UNICODE_STRING module_name)
 {
     PPEB pPeb = PsGetProcessPeb(proc);
@@ -102,6 +131,7 @@ ULONG64 get_module_base_x64(PEPROCESS proc, UNICODE_STRING module_name)
     return NULL;
 }
 
+// Function to read kernel memory
 bool read_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t size)
 {
     if (!address || !buffer || !size)
@@ -117,6 +147,7 @@ bool read_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t size
     return NT_SUCCESS(status);
 }
 
+// Function to write to kernel memory
 bool write_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t size)
 {
     if (!address || !buffer || !size)
@@ -137,7 +168,7 @@ bool write_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t siz
         return false;
     }
 
-    if ((info.Protect & PAGE_READWRITE) || (info.Protect & PAGE_WRITECOPY)) {
+    if ((info.Protect & PAGE_READWRITE) || (info.Protect & PAGE_WRITECOPY) || (info.Protect & PAGE_EXECUTE_READWRITE)) {
         RtlCopyMemory((void*)address, buffer, size);
     }
 

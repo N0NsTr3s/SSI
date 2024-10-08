@@ -1,0 +1,2 @@
+C:\Users\Edi\source\repos\KEDRTE\x64\Release\UserMKeC.exe.lastcodeanalysissucceeded
+C:\Users\Edi\source\repos\KEDRTE\UserMKeC\x64\Release\NativeCodeAnalysis.read.1.tlog

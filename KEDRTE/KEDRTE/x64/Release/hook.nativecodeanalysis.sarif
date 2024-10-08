@@ -1,0 +1,89 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json",
+  "runs": [
+    {
+      "results": [
+        {
+          "ruleId": "C28751",
+          "message": {
+            "text": "Banned usage of ExAllocatePool and its variants:  ExAllocatePool is a banned API for improved error handling purposes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "file:///C:/Users/Edi/source/repos/KEDRTE/KEDRTE/hook.cpp"
+                },
+                "region": {
+                  "startLine": 92,
+                  "startColumn": 32,
+                  "endLine": 92,
+                  "endColumn": 73
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "hook_handler",
+                  "decoratedName": "?hook_handler@@YAJPEAX@Z",
+                  "kind": "function"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tool": {
+        "driver": {
+          "name": "PREfast",
+          "fullName": "PREfast Code Analysis",
+          "version": "14.41.34120.0",
+          "informationUri": "https://aka.ms/cpp/ca"
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true
+        }
+      ],
+      "artifacts": [
+        {
+          "location": {
+            "uri": "file:///C:/Users/Edi/source/repos/KEDRTE/KEDRTE/hook.cpp"
+          },
+          "roles": [
+            "analysisTarget",
+            "resultFile"
+          ],
+          "hashes": {
+            "sha-256": "ad3f56eaa99cc3d931f7952b24e38cbf2901c72c99a5888674139ed62932f326"
+          }
+        },
+        {
+          "location": {
+            "uri": "file:///c:/users/edi/source/repos/kedrte/kedrte/hook.h"
+          },
+          "hashes": {
+            "sha-256": "dc410d8958e43d231a14b783a7e1df156e84a623874ef2e018de8cd33c5b5b2a"
+          }
+        },
+        {
+          "location": {
+            "uri": "file:///c:/users/edi/source/repos/kedrte/kedrte/memory.h"
+          },
+          "hashes": {
+            "sha-256": "6d26ced1a2756d6c27e49e3349ab6d4eb22a945e4389cdfc50fb8f516ed9ec7c"
+          }
+        },
+        {
+          "location": {
+            "uri": "file:///c:/users/edi/source/repos/kedrte/kedrte/definitions.h"
+          },
+          "hashes": {
+            "sha-256": "eb979226d14dae695366107df1416ec9dc1ba13cb9446fbf2906280ddcd80e25"
+          }
+        }
+      ]
+    }
+  ]
+}
