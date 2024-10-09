@@ -1,3 +1,4 @@
+#pragma disable (4996 28751)
 #include "hook.h"
 #include <wingdi.h>
 
@@ -10,16 +11,17 @@ NtGdiCreateSolidBrush_t NtGdiCreateSolidBrush = NULL;
 ReleaseDC_t NtUserReleaseDC = NULL;
 DeleteObjectApp_t NtGdiDeleteObjectApp = NULL;
 
-bool call_kernel_function(void* kernel_function_address)
+bool nullhook::call_kernel_function(void* kernel_function_address)
 {
     DbgPrint("Entering call_kernel_function.\n");
-
+    
     if (!kernel_function_address) {
         DbgPrint("Failed to get kernel function address.\n");
         return false;
     }
 
-    PVOID* function = reinterpret_cast<PVOID*>(get_system_module_export(L"\\SystemRoot\\System32\\drivers\\dxgkrnl.sys", "NtQuerySection"));
+    PVOID* function = reinterpret_cast<PVOID*>(get_system_module_export("\\SystemRoot\\System32\\drivers\\dxgkrnl.sys", "NtDxgkGetTrackedWorkloadStatistics"));
+
 
     if (!function) {
         DbgPrint("Failed to get function address from dxgkrnl.sys.\n");
@@ -38,10 +40,7 @@ bool call_kernel_function(void* kernel_function_address)
     memcpy((PVOID)((ULONG_PTR)orig + sizeof(shell_code)), &hook_address, sizeof(void*));
     memcpy((PVOID)((ULONG_PTR)orig + sizeof(shell_code) + sizeof(void*)), &shell_code_end, sizeof(shell_code_end));
 
-    if (!write_to_read_only_memory(function, &orig, sizeof(orig))) {
-        DbgPrint("Failed to write to read-only memory.\n");
-        return false;
-    }
+    write_to_read_only_memory(function, &orig, sizeof(orig));
 
     DbgPrint("Successfully wrote hook to memory.\n");
 
@@ -52,20 +51,16 @@ bool call_kernel_function(void* kernel_function_address)
     NtUserReleaseDC = (ReleaseDC_t)get_system_module_export(L"win32kbase.sys", "NtUserReleaseDC");
     NtGdiDeleteObjectApp = (DeleteObjectApp_t)get_system_module_export(L"win32kbase.sys", "NtGdiDeleteObjectApp");
 
-    if (!GdiSelectBrush || !NtGdiCreateSolidBrush || !NtGdiPatBlt || !NtUserGetDC || !NtUserReleaseDC || !NtGdiDeleteObjectApp) {
-        DbgPrint("Failed to get one or more function addresses from win32k modules.\n");
-        return false;
-    }
 
     DbgPrint("Successfully hooked GDI functions.\n");
 
     return true;
 }
 
-NTSTATUS hook_handler(PVOID called_param) {
+NTSTATUS nullhook::hook_handler(PVOID called_param) {
     DbgPrint("Entering hook_handler.\n");
 
-    NULL_MEMORY* instructions = static_cast<NULL_MEMORY*>(called_param);
+    NULL_MEMORY* instructions =(NULL_MEMORY*)(called_param);
 
     if (instructions->req_base == TRUE) {
         DbgPrint("Requesting base address for module: %s\n", instructions->module_name);
@@ -77,18 +72,20 @@ NTSTATUS hook_handler(PVOID called_param) {
         RtlAnsiStringToUnicodeString(&ModuleName, &AS, TRUE);
 
         PEPROCESS Process;
-        PsLookupProcessByProcessId(HANDLE(instructions->pid), &Process);
-        ULONG64 base_address64 = get_module_base_x64(Process, ModuleName);
+        PsLookupProcessByProcessId((HANDLE)instructions->pid, &Process);
+        ULONG64 base_address64 = NULL;
+            
+        base_address64 = get_module_base_x64(Process, ModuleName);
         instructions->base_address = base_address64;
 
         RtlFreeUnicodeString(&ModuleName);
 
-        //DbgPrint("Base address: %p\n", base_address64);
+        DbgPrint("Base address: %p\n", base_address64);
     }
     else if (instructions->write == TRUE) {
-        //DbgPrint("Writing to memory: PID=%lu, Address=%p, Size=%llu\n", instructions->pid, instructions->address, instructions->size);
+        DbgPrint("Writing to memory: PID=%lu, Address=%p, Size=%llu\n", instructions->pid, instructions->address, instructions->size);
 
-        if (instructions->address < 0x7FFFFFFFFFF && instructions->address > 0) {
+        if (instructions->address < 0x7FFFFFFFFFFF && instructions->address > 0) {
             PVOID kernelBuff = ExAllocatePool(NonPagedPool, instructions->size);
 
             if (!kernelBuff) {
@@ -109,35 +106,32 @@ NTSTATUS hook_handler(PVOID called_param) {
         }
     }
     else if (instructions->read == TRUE) {
-        //DbgPrint("Reading from memory: PID=%lu, Address=%p, Size=%llu\n", instructions->pid, instructions->address, instructions->size);
+        DbgPrint("Reading from memory: PID=%lu, Address=%p, Size=%llu\n", instructions->pid, instructions->address, instructions->size);
 
-        if (instructions->address < 0x7FFFFFFFFFF && instructions->address > 0) {
+        if (instructions->address < 0x7FFFFFFFFFFF && instructions->address > 0) {
             read_kernel_memory((HANDLE)instructions->pid, instructions->address, instructions->output, instructions->size);
         }
     }
     else if (instructions->draw_box == TRUE) {
-        DbgPrint("Drawing box: (%d, %d) Width=%d, Height=%d, Color=(%d, %d, %d), Thickness=%d\n",
-            instructions->x, instructions->y, instructions->w, instructions->h,
-            instructions->r, instructions->g, instructions->b, instructions->t);
-
+		DbgPrint("Drawing box: R=%d, G=%d, B=%d, X=%d, Y=%d, W=%d, H=%d, T=%d\n", instructions->r, instructions->g, instructions->b, instructions->x, instructions->y, instructions->w, instructions->h, instructions->t);
         HDC hdc = NtUserGetDC(NULL);
         if (!hdc) {
             DbgPrint("Failed to get device context.\n");
             return STATUS_UNSUCCESSFUL;
         }
 
-        HBRUSH hbr = NtGdiCreateSolidBrush(RGB(instructions->r, instructions->g, instructions->b), NULL);
-        if (!hbr) {
+        HBRUSH brush = NtGdiCreateSolidBrush(RGB(instructions->r, instructions->g, instructions->b), NULL);
+        if (!brush) {
             DbgPrint("Failed to create solid brush.\n");
             NtUserReleaseDC(hdc);
             return STATUS_UNSUCCESSFUL;
         }
 
         RECT rect = { instructions->x, instructions->y, instructions->x + instructions->w, instructions->y + instructions->h };
-        nullhook::FrameRect(hdc, &rect, hbr, instructions->t);
+        FrameRect(hdc, &rect, brush, instructions->t);
 
         NtUserReleaseDC(hdc);
-        NtGdiDeleteObjectApp(hbr);
+        NtGdiDeleteObjectApp(brush);
 
         DbgPrint("Box drawn successfully.\n");
     }
@@ -151,16 +145,15 @@ INT nullhook::FrameRect(HDC hDC, CONST RECT* lprc, HBRUSH hbr, int thickness) {
     HBRUSH oldbrush;
     RECT r = *lprc;
 
-    oldbrush = GdiSelectBrush(hDC, hbr);
-    if (!oldbrush) {
+    if (!(oldbrush = GdiSelectBrush(hDC, hbr))) {
         DbgPrint("Failed to select brush.\n");
         return 0;
     }
 
     NtGdiPatBlt(hDC, r.left, r.top, thickness, r.bottom - r.top, PATCOPY);
-    NtGdiPatBlt(hDC, r.right - 1, r.top, thickness, r.bottom - r.top, PATCOPY);
+    NtGdiPatBlt(hDC, r.right - thickness, r.top, thickness, r.bottom - r.top, PATCOPY);
     NtGdiPatBlt(hDC, r.left, r.top, r.right - r.left, thickness, PATCOPY);
-    NtGdiPatBlt(hDC, r.left, r.bottom - 1, r.right - r.left, thickness, PATCOPY);
+    NtGdiPatBlt(hDC, r.left, r.bottom - thickness, r.right - r.left, thickness, PATCOPY);
 
     GdiSelectBrush(hDC, oldbrush);
 

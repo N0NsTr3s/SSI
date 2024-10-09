@@ -20,7 +20,9 @@ typedef struct _NULL_MEMORY
     void* output;
     const char* module_name;
     ULONG64 base_address;
-} NULL_MEMORY;
+
+}NULL_MEMORY;
+
 
 uintptr_t base_address = 0;
 std::uint32_t process_id = 0;
@@ -28,32 +30,14 @@ HDC hdc;
 
 template<typename ... Arg>
 uint64_t call_hook(const Arg ... args) {
-    void* hooked_func = nullptr;
-    HMODULE hModule = LoadLibrary("ntdll.dll");  // Ensure correct DLL
-    if (!hModule) {
-        std::cerr << "Failed to load win32u.dll.\n";
-        return 0;
-    }
-
-    hooked_func = GetProcAddress(hModule, "NtQuerySection");
-    if (!hooked_func) {
-        std::cerr << "Failed to get the address of NtQuerySection.\n";
-        return 0;
-    }
-
-    std::cout << "Successfully got address of NtQuerySection.\n";
+    void* hooked_func = GetProcAddress(LoadLibrary("win32u.dll"), "NtDxgkGetTrackedWorkloadStatistics");
 
     auto func = static_cast<uint64_t(_stdcall*)(Arg...)>(hooked_func);
-    if (func) {
-        auto result = func(args ...);
-        std::cout << "Hook executed, result: " << result << "\n";  // Log the result of the function
-        return result;
-    }
-    else {
-        std::cout << "Failed to cast the function pointer.\n";
-        return 0;
-    }
+
+    return func(args ...);
 }
+
+
 
 struct HandleDisposer
 {
@@ -107,17 +91,18 @@ ULONG64 get_module_base_address(const char* module_name)
     instructions.module_name = module_name;
 
     std::cout << "NULL_MEMORY details: PID: " << instructions.pid
-        << ", Module: " << instructions.module_name
-        << ", Request base: " << instructions.req_base << "\n";
+        << ", Module: " << instructions.module_name;
+    if (instructions.req_base == TRUE){
+        std::cout<< ", Request base: TRUE'\n"; }
+    else if (instructions.req_base == FALSE){
+        std::cout<< ", Request base: FALSE '\n"; }
+    else {
+		std::cout<< ", Request base: Error" << "\n";
+    }
 
-    auto result = call_hook(&instructions);
-    std::cout << "call_hook result: " << result << "\n";  // Log the result of call_hook
+     call_hook(&instructions);
     std::cout << "After call_hook, base_address: " << instructions.base_address << "\n";  // Log base_address
 
-    if (!result) {
-        std::cerr << "call_hook failed to retrieve base address.\n";
-        return 0;
-    }
 
     ULONG64 base = instructions.base_address;
     if (!base) {
@@ -180,13 +165,9 @@ bool draw_box(int x, int y, int w, int h, int r, int g, int b, int t)
     instructions.g = g;
     instructions.b = b;
     instructions.t = t;
-    auto result = call_hook(&instructions);
+    call_hook(&instructions);
 
-    if (!result) {
-        std::cerr << "call_hook failed to draw box.\n";
-        return false;
-    }
-
+    
     std::cout << "Drawing box at (" << x << ", " << y << ") with width " << w << " and height " << h << "\n";
     return true;
 }
@@ -201,41 +182,11 @@ int main()
 {
     std::cout << "Starting the program...\n";
 
-    process_id = get_process_id("Taskmgr.exe");
-    if (!process_id) {
-        std::cerr << "Failed to get the process ID of Taskmgr.exe.\n";
-        std::cout << "Press Enter to exit...";
-        std::cin.get();
-        return 1;
-    }
-    else {
-        std::cout << "Taskmgr.exe process ID: " << process_id << "\n";
-    }
-
-    base_address = get_module_base_address("Taskmgr.exe");
-    if (!base_address) {
-        std::cerr << "Failed to get the base address of the module.\n";
-        std::cout << "Press Enter to exit...";
-        std::cin.get();
-        return 1;
-    }
-    else {
-        std::cout << "Success in getting the base address.\n";
-    }
-
-    auto result = draw_box(50, 50, 50, 50, 255, 0, 0, 5);
-    if (!result) {
-        std::cerr << "Failed to draw box.\n";
-        std::cout << result;
-
-    }
-    else {
-        std::cout << "Box drawn successfully.\n";
-        draw_box(50, 50, 50, 50, 255, 0, 0, 5);
-    }
     
+    while (true) {
+		draw_box(100, 100, 100, 100, 255, 0, 0, 5);
+    }
 
-    std::cout << "Press Enter to exit...";
-    std::cin.get();
+
     return 0;
 }
