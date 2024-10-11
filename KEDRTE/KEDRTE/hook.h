@@ -1,9 +1,12 @@
 #pragma once
 #include "Memory.h"
 
-typedef HBRUSH(*GdiSelectBrush_t)(_In_ HDC hdc, _In_ HBRUSH hbr);
 
-typedef BOOL(*PatBlt_t)(_In_ HDC,
+
+
+typedef HBRUSH(*NtGdiSelectBrush_t)(_In_ HDC hdc, _In_ HBRUSH hbr);
+
+typedef BOOL(*NtPatBlt_t)(_In_ HDC,
 	_In_ int x,
 	_In_ int y,
 	_In_ int w,

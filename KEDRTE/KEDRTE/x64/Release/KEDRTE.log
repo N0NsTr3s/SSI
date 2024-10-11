@@ -1,20 +1,11 @@
 ﻿  Building 'KEDRTE' with toolset 'WindowsKernelModeDriver10.0' and the 'Universal' target platform.
   Stamping x64\Release\KEDRTE.inf
-  Stamping [Version] section with DriverVer=10/10/2024,0.52.55.351
+  Stamping [Version] section with DriverVer=10/12/2024,0.22.8.673
   definitions.cpp
   hook.cpp
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\hook.cpp(89,32): warning C4996: 'ExAllocatePool': ExAllocatePool is deprecated, use ExAllocatePool2.
+C:\Users\Edi\source\repos\KEDRTE\KEDRTE\hook.cpp(114,32): warning C4996: 'ExAllocatePool': ExAllocatePool is deprecated, use ExAllocatePool2.
   main.cpp
   Memory.cpp
   Generating Code...
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\Memory.cpp(170,1): warning C4702: unreachable code
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\Memory.cpp(174,1): warning C4702: unreachable code
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\Memory.cpp(178,1): warning C4702: unreachable code
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\Memory.cpp(181,1): warning C4702: unreachable code
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\Memory.cpp(180,1): warning C4702: unreachable code
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\Memory.cpp(183,1): warning C4702: unreachable code
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\Memory.cpp(186,1): warning C4702: unreachable code
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\Memory.cpp(193,1): warning C4702: unreachable code
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\Memory.cpp(111,1): warning C4715: 'get_system_module_export': not all control paths return a value
   KEDRTE.vcxproj -> C:\Users\Edi\source\repos\KEDRTE\x64\Release\KEDRTE.sys
   Driver is 'Universal'.

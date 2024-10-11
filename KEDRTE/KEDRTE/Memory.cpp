@@ -53,62 +53,79 @@ PVOID get_system_module_export(const char* module_name, LPCSTR routine_name)
 	if (!lpModule) {
 		return NULL;
 	}
-
+	DbgPrint("Module base: %p from get_system_module_export\n", lpModule);
 	return RtlFindExportedRoutineByName(lpModule, routine_name);
 }
 // Function to get system module export
+
 PVOID get_system_module_export(LPCWSTR module_name, LPCSTR routine_name)
 {
-    // Get the list of loaded modules from the PsLoadedModuleList
-    PLIST_ENTRY moduleList = reinterpret_cast<PLIST_ENTRY>(get_system_routine_address(L"PsLoadedModuleList"));
-    DbgPrint("PsLoadedModuleList address: %p\n", moduleList);
+    DbgPrint("Getting system module export: %ws, %s\n", module_name, routine_name);
 
-    if (!moduleList) {
-        DbgPrint("Failed to get PsLoadedModuleList.\n");
+    // Query the size of the system module information
+    ULONG bytes = 0;
+    NTSTATUS status = ZwQuerySystemInformation(SystemModuleInformation, NULL, 0, &bytes);
+    if (status != STATUS_INFO_LENGTH_MISMATCH) {
+        DbgPrint("Failed to query system module information size. Status: 0x%X\n", status);
         return NULL;
     }
 
-    // Iterate through each loaded module
-    for (PLIST_ENTRY link = moduleList; link != moduleList->Blink; link = link->Flink)
+    // Allocate memory for system module information
+    PSYSTEM_MODULE_INFORMATION pMods = (PSYSTEM_MODULE_INFORMATION)ExAllocatePoolWithTag(NonPagedPool, bytes, 'sysM');
+    if (!pMods) {
+        DbgPrint("Failed to allocate memory for module information.\n");
+        return NULL;
+    }
+
+    // Query system module information
+    status = ZwQuerySystemInformation(SystemModuleInformation, pMods, bytes, &bytes);
+    if (!NT_SUCCESS(status)) {
+        DbgPrint("Failed to query system module information. Status: 0x%X\n", status);
+        ExFreePoolWithTag(pMods, 'sysM');
+        return NULL;
+    }
+
+    // Iterate over all system modules
+    PSYSTEM_MODULE_ENTRY pMod = pMods->Module;
+    UNICODE_STRING unicodeModuleName;
+    ANSI_STRING targetModuleName;
+    RtlInitUnicodeString(&unicodeModuleName, module_name);
+    RtlUnicodeStringToAnsiString(&targetModuleName, &unicodeModuleName, TRUE);
+    
+
+    for (ULONG i = 0; i < pMods->Count; i++)
     {
-        // Access the loaded module entry
-        LDR_DATA_TABLE_ENTRY* entry = CONTAINING_RECORD(link, LDR_DATA_TABLE_ENTRY, InLoadOrderModuleList);
+        ANSI_STRING currentModuleName;
+        RtlInitAnsiString(&currentModuleName, (PCSZ)pMod[i].FullPathName);
 
-        if (!entry) {
-            DbgPrint("Invalid module entry.\n");
-            continue;
-        }
+        DbgPrint("Checking module: %Z to see if it is: %X\n", &currentModuleName, &targetModuleName);
 
-        // Check if the BaseDllName is valid
-        if (entry->BaseDllName.Buffer) {
-            DbgPrint("Inspecting module: %wZ, %wZ, (Length: %u, MaximumLength: %u)\n",
-                &entry->BaseDllName, entry->FullDllName, entry->BaseDllName.Length, entry->BaseDllName.MaximumLength);
-        }
-        else {
-            DbgPrint("Module with NULL BaseDllName encountered.\n");
-            continue;
-        }
-
-        // Compare against the base name (just the filename, not the full path)
-        UNICODE_STRING name;
-        RtlInitUnicodeString(&name, module_name);
-
-        if (RtlEqualUnicodeString(&entry->BaseDllName, &name, TRUE))
+        // Compare module names (target module name with the current module)
+        if (RtlCompareString(&targetModuleName, &currentModuleName, TRUE) == 0)
         {
-            if (entry->DllBase)
-            {
-				DbgPrint("Found module: %wZ at address: %p\n", &entry->BaseDllName, entry->DllBase);
-                return RtlFindExportedRoutineByName(entry->DllBase, routine_name);
+            PVOID moduleBase = pMod[i].ImageBase;
+            DbgPrint("Found module: %Z at base: %p, size: %lx\n", &currentModuleName, moduleBase, pMod[i].ImageSize);
+
+            // Find the exported routine by name
+            PVOID routine_address = RtlFindExportedRoutineByName(moduleBase, routine_name);
+            if (routine_address) {
+                DbgPrint("Found routine: %s at address: %p\n", routine_name, routine_address);
+                ExFreePoolWithTag(pMods, 'sysM');
+                return routine_address;
             }
-            else
-            {
-				DbgPrint("Found module: %wZ, but DllBase is NULL.\n", &entry->BaseDllName);
+            else {
+                DbgPrint("Failed to find routine: %s in module: %Z\n", routine_name, &currentModuleName);
+                ExFreePoolWithTag(pMods, 'sysM');
                 return NULL;
             }
         }
     }
 
+    DbgPrint("Module %ws not found.\n", module_name);
+    ExFreePoolWithTag(pMods, 'sysM');
+    return NULL;
 }
+
 
 
 
@@ -160,32 +177,36 @@ bool write_to_read_only_memory(void* address, void* buffer, size_t size)
 // Function to get module base for x64
 ULONG64 get_module_base_x64(PEPROCESS proc, UNICODE_STRING module_name)
 {
-	DbgPrint("Getting module base for: %wZ\n", &module_name);
+    DbgPrint("Getting module base for: %wZ get_module_base_x64\n", &module_name);
     PPEB pPeb = PsGetProcessPeb(proc);
     if (!pPeb)
-		DbgPrint("Failed to get PEB.\n");
+    {
+        DbgPrint("Failed to get PEB.\n");
         return NULL;
+    }
 
     KAPC_STATE state;
     KeStackAttachProcess(proc, &state);
-	DbgPrint("Successfully attached to process.\n");
+    DbgPrint("Successfully attached to process.\n");
     PPEB_LDR_DATA pLdr = (PPEB_LDR_DATA)pPeb->Ldr;
-    if (!pLdr) {
-		DbgPrint("Failed to get LDR.\n");
+    if (!pLdr)
+    {
         KeUnstackDetachProcess(&state);
+        DbgPrint("Failed to get LDR.\n");
         return NULL;
     }
     DbgPrint("Iterating through module list.\n");
-    for (PLIST_ENTRY list = (PLIST_ENTRY)pLdr->ModuleListLoadOrder.Flink;
-        list != &pLdr->ModuleListLoadOrder;
-        list = (PLIST_ENTRY)list->Flink)
+    for (PLIST_ENTRY list = pLdr->ModuleListLoadOrder.Flink;
+         list != &pLdr->ModuleListLoadOrder;
+         list = list->Flink)
     {
-		DbgPrint("Inspecting module.\n");
+        DbgPrint("Inspecting module.\n");
         PLDR_DATA_TABLE_ENTRY pEntry = CONTAINING_RECORD(list, LDR_DATA_TABLE_ENTRY, InLoadOrderModuleList);
-        if (RtlCompareUnicodeString(&pEntry->BaseDllName, &module_name, TRUE) == 0) {
-            ULONG64 baseAddr = (ULONG64)pEntry->DllBase;
+        if (RtlCompareUnicodeString(&pEntry->BaseDllName, &module_name, TRUE) == 0)
+        {
+            ULONG64 baseAddr = reinterpret_cast<ULONG64>(pEntry->DllBase);
             KeUnstackDetachProcess(&state);
-			DbgPrint("Found module base: %p\n", baseAddr);
+            DbgPrint("Found module base: %p\n", reinterpret_cast<void*>(baseAddr));
             return baseAddr;
         }
     }

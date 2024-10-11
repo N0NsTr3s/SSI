@@ -30,10 +30,10 @@ HDC hdc;
 
 template<typename ... Arg>
 uint64_t call_hook(const Arg ... args) {
-    void* hooked_func = GetProcAddress(LoadLibrary("win32u.dll"), "NtDxgkGetTrackedWorkloadStatistics");
-
+    void* hooked_func = GetProcAddress(LoadLibrary("win32u.dll"), "NtUserQueryInformationThread");
+	std::cout << "Hooked function address: " << hooked_func << "\n";
     auto func = static_cast<uint64_t(_stdcall*)(Arg...)>(hooked_func);
-
+	std::cout << "Returning hooked function...\n";
     return func(args ...);
 }
 
@@ -44,7 +44,8 @@ struct HandleDisposer
     using pointer = HANDLE;
     void operator()(HANDLE handle) const
     {
-        if (handle != NULL && handle != INVALID_HANDLE_VALUE) {
+        if (handle != NULL || handle != INVALID_HANDLE_VALUE) {
+			std::cout << "Closing handle: " << handle << std::endl;
             CloseHandle(handle);
         }
     }
@@ -90,17 +91,19 @@ ULONG64 get_module_base_address(const char* module_name)
     instructions.draw_box = FALSE;
     instructions.module_name = module_name;
 
-    std::cout << "NULL_MEMORY details: PID: " << instructions.pid
-        << ", Module: " << instructions.module_name;
-    if (instructions.req_base == TRUE){
-        std::cout<< ", Request base: TRUE'\n"; }
-    else if (instructions.req_base == FALSE){
-        std::cout<< ", Request base: FALSE '\n"; }
+    std::cout << "NULL_MEMORY details: PID: " << instructions.pid << '\n'
+        << ", Module: " << instructions.module_name << '\n';
+    if (instructions.req_base == TRUE) {
+        std::cout << ", Request base: TRUE'\n";
+    }
+    else if (instructions.req_base == FALSE) {
+        std::cout << ", Request base: FALSE '\n";
+    }
     else {
-		std::cout<< ", Request base: Error" << "\n";
+        std::cout << ", Request base: Error" << "\n";
     }
 
-     call_hook(&instructions);
+    call_hook(&instructions);
     std::cout << "After call_hook, base_address: " << instructions.base_address << "\n";  // Log base_address
 
 
@@ -167,7 +170,7 @@ bool draw_box(int x, int y, int w, int h, int r, int g, int b, int t)
     instructions.t = t;
     call_hook(&instructions);
 
-    
+
     std::cout << "Drawing box at (" << x << ", " << y << ") with width " << w << " and height " << h << "\n";
     return true;
 }
@@ -181,10 +184,11 @@ bool write(UINT_PTR write_address, const S& value)
 int main()
 {
     std::cout << "Starting the program...\n";
+	std::cout << get_module_base_address("Taskmgr.exe") << std::endl;
 
-    
+    std::cout << "Entering loop...";
     while (true) {
-		draw_box(100, 100, 100, 100, 255, 0, 0, 5);
+        draw_box(100, 100, 100, 100, 255, 0, 0, 5);
     }
 
 

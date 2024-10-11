@@ -135,6 +135,7 @@ RtlFindExportedRoutineByName(
     _In_ PCCH RoutineName    // Fixed typo
 );
 
+
 extern "C" NTSTATUS ZwQuerySystemInformation(
     ULONG InfoClass, 
     PVOID Buffer, 
@@ -156,3 +157,23 @@ extern "C" NTSTATUS NTAPI MmCopyVirtualMemory(
     KPROCESSOR_MODE PreviousMode,
     PSIZE_T ReturnSize
 );
+
+typedef struct _SYSTEM_MODULE_ENTRY
+{
+    HANDLE Section;
+    PVOID MappedBase;
+    PVOID ImageBase;
+    ULONG ImageSize;
+    ULONG Flags;
+    USHORT LoadOrderIndex;
+    USHORT InitOrderIndex;
+    USHORT LoadCount;
+    USHORT OffsetToFileName;
+    UCHAR FullPathName[256];
+} SYSTEM_MODULE_ENTRY, * PSYSTEM_MODULE_ENTRY;
+
+typedef struct _SYSTEM_MODULE_INFORMATION
+{
+    ULONG Count;
+    SYSTEM_MODULE_ENTRY Module[1];
+} SYSTEM_MODULE_INFORMATION, * PSYSTEM_MODULE_INFORMATION;

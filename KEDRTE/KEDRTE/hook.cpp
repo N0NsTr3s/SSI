@@ -4,8 +4,8 @@
 
 using namespace std;
 
-GdiSelectBrush_t GdiSelectBrush = NULL;
-PatBlt_t NtGdiPatBlt = NULL;
+NtGdiSelectBrush_t NtGdiSelectBrush = NULL;
+NtPatBlt_t NtGdiPatBlt = NULL;
 NtUserGetDC_t NtUserGetDC = NULL;
 NtGdiCreateSolidBrush_t NtGdiCreateSolidBrush = NULL;
 ReleaseDC_t NtUserReleaseDC = NULL;
@@ -20,7 +20,7 @@ bool nullhook::call_kernel_function(void* kernel_function_address)
         return false;
     }
 
-    PVOID* function = reinterpret_cast<PVOID*>(get_system_module_export("\\SystemRoot\\System32\\drivers\\dxgkrnl.sys", "NtDxgkGetTrackedWorkloadStatistics"));
+    PVOID* function = reinterpret_cast<PVOID*>(get_system_module_export("\\SystemRoot\\System32\\win32kfull.sys", "NtUserQueryInformationThread"));
 
 
     if (!function) {
@@ -44,14 +44,39 @@ bool nullhook::call_kernel_function(void* kernel_function_address)
 
     DbgPrint("Successfully wrote hook to memory.\n");
 
-    GdiSelectBrush = (GdiSelectBrush_t)get_system_module_export(L"win32kfull.sys", "NtGdiSelectBrush");
-    NtGdiCreateSolidBrush = (NtGdiCreateSolidBrush_t)get_system_module_export(L"win32kfull.sys", "NtGdiCreateSolidBrush");
-    NtGdiPatBlt = (PatBlt_t)get_system_module_export(L"win32kfull.sys", "NtGdiPatBlt");
-    NtUserGetDC = (NtUserGetDC_t)get_system_module_export(L"win32kbase.sys", "NtUserGetDC");
-    NtUserReleaseDC = (ReleaseDC_t)get_system_module_export(L"win32kbase.sys", "NtUserReleaseDC");
-    NtGdiDeleteObjectApp = (DeleteObjectApp_t)get_system_module_export(L"win32kbase.sys", "NtGdiDeleteObjectApp");
+    NtGdiSelectBrush = (NtGdiSelectBrush_t)get_system_module_export(L"\\SystemRoot\\System32\\win32kfull.sys", "NtGdiSelectBrush");
+    DbgPrint("[+] SysCall: GdiSelectBrush module_export: 0x%p \n", NtGdiSelectBrush);
+    NtGdiCreateSolidBrush = (NtGdiCreateSolidBrush_t)get_system_module_export(L"\\SystemRoot\\System32\\win32kfull.sys", "NtGdiCreateSolidBrush");
+    DbgPrint("[+] SysCall: NtGdiCreateSolidBrush module_export: 0x%p \n", NtGdiCreateSolidBrush);
+    NtGdiPatBlt = (NtPatBlt_t)get_system_module_export(L"\\SystemRoot\\System32\\win32kfull.sys", "NtGdiPatBlt");
+    DbgPrint("[+] SysCall: NtGdiPatBlt module_export: 0x%p \n", NtGdiPatBlt);
+    NtUserGetDC = (NtUserGetDC_t)get_system_module_export(L"\\SystemRoot\\System32\\win32kbase.sys", "NtUserGetDC");
+    DbgPrint("[+] SysCall: NtUserGetDC module_export: 0x%p \n", NtUserGetDC);
+    NtUserReleaseDC = (ReleaseDC_t)get_system_module_export(L"\\SystemRoot\\System32\\win32kbase.sys", "NtUserReleaseDC");
+    DbgPrint("[+] SysCall: NtUserReleaseDC module_export: 0x%p \n", NtUserReleaseDC);
+    NtGdiDeleteObjectApp = (DeleteObjectApp_t)get_system_module_export(L"\\SystemRoot\\System32\\win32kbase.sys", "NtGdiDeleteObjectApp");
+    DbgPrint("[+] SysCall: NtGdiDeleteObjectApp module_export: 0x%p \n", NtGdiDeleteObjectApp);
 
 
+
+    PVOID module_base = get_system_module_base("\\SystemRoot\\System32\\win32kfull.sys");
+    DbgPrint("Module base address of win32kfull.sys: %p\n", module_base);
+    //Checks syscall
+    if (NtUserGetDC == NULL) {
+        DbgPrint("Failed to get NtUserGetDC");
+    }
+    if (NtUserReleaseDC == NULL) {
+        DbgPrint("Failed to get NtUserReleaseDC");
+    }
+    if (NtGdiCreateSolidBrush == NULL) {
+        DbgPrint("Failed to get NtGdiCreateSolidBrush");
+    }
+    if (NtGdiDeleteObjectApp == NULL) {
+        DbgPrint("Failed to get NtGdiDeleteObjectApp");
+    }
+    if (NtGdiSelectBrush == NULL) {
+        DbgPrint("Failed to get GdiSelectBrush");
+    }
     DbgPrint("Successfully hooked GDI functions.\n");
 
     return true;
@@ -60,7 +85,7 @@ bool nullhook::call_kernel_function(void* kernel_function_address)
 NTSTATUS nullhook::hook_handler(PVOID called_param) {
     DbgPrint("Entering hook_handler.\n");
 
-    NULL_MEMORY* instructions =(NULL_MEMORY*)(called_param);
+    NULL_MEMORY* instructions = (NULL_MEMORY*)(called_param);
 
     if (instructions->req_base == TRUE) {
         DbgPrint("Requesting base address for module: %s\n", instructions->module_name);
@@ -74,7 +99,7 @@ NTSTATUS nullhook::hook_handler(PVOID called_param) {
         PEPROCESS Process;
         PsLookupProcessByProcessId((HANDLE)instructions->pid, &Process);
         ULONG64 base_address64 = NULL;
-            
+
         base_address64 = get_module_base_x64(Process, ModuleName);
         instructions->base_address = base_address64;
 
@@ -113,7 +138,7 @@ NTSTATUS nullhook::hook_handler(PVOID called_param) {
         }
     }
     else if (instructions->draw_box == TRUE) {
-		DbgPrint("Drawing box: R=%d, G=%d, B=%d, X=%d, Y=%d, W=%d, H=%d, T=%d\n", instructions->r, instructions->g, instructions->b, instructions->x, instructions->y, instructions->w, instructions->h, instructions->t);
+        DbgPrint("Drawing box: R=%d, G=%d, B=%d, X=%d, Y=%d, W=%d, H=%d, T=%d\n", instructions->r, instructions->g, instructions->b, instructions->x, instructions->y, instructions->w, instructions->h, instructions->t);
         HDC hdc = NtUserGetDC(NULL);
         if (!hdc) {
             DbgPrint("Failed to get device context.\n");
@@ -145,7 +170,7 @@ INT nullhook::FrameRect(HDC hDC, CONST RECT* lprc, HBRUSH hbr, int thickness) {
     HBRUSH oldbrush;
     RECT r = *lprc;
 
-    if (!(oldbrush = GdiSelectBrush(hDC, hbr))) {
+    if (!(oldbrush = NtGdiSelectBrush(hDC, hbr))) {
         DbgPrint("Failed to select brush.\n");
         return 0;
     }
@@ -155,7 +180,7 @@ INT nullhook::FrameRect(HDC hDC, CONST RECT* lprc, HBRUSH hbr, int thickness) {
     NtGdiPatBlt(hDC, r.left, r.top, r.right - r.left, thickness, PATCOPY);
     NtGdiPatBlt(hDC, r.left, r.bottom - thickness, r.right - r.left, thickness, PATCOPY);
 
-    GdiSelectBrush(hDC, oldbrush);
+    NtGdiSelectBrush(hDC, oldbrush);
 
     DbgPrint("Exiting FrameRect.\n");
     return TRUE;
