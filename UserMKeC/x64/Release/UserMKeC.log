@@ -1,0 +1,8 @@
+﻿cl : command line  warning D9025: overriding '/sdl' with '/GS-'
+  main.cpp
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 33 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+C:\Users\Edi\source\repos\KEDRTE\UserMKeC\main.cpp(70): warning C4715: 'call_hook<_NULL_MEMORY *>': not all control paths return a value
+  Finished generating code
+  UserMKeC.vcxproj -> C:\Users\Edi\source\repos\KEDRTE\x64\Release\UserMKeC.exe

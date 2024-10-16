@@ -1,0 +1,3 @@
+﻿  main.cpp
+main.obj : error LNK2019: unresolved external symbol __imp__calloc_dbg referenced in function "char * __cdecl std::_Maklocstr<char>(char const *,char *,struct _Cvtvec const &)" (??$_Maklocstr@D@std@@YAPEADPEBDPEADAEBU_Cvtvec@@@Z)
+C:\Users\Edi\source\repos\KEDRTE\x64\Debug\UserMKeC.exe : fatal error LNK1120: 1 unresolved externals
