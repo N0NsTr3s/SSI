@@ -1,2 +1,0 @@
-C:\Users\Edi\source\repos\KEDRTE\x64\Release\KEDRTE.sys.lastcodeanalysissucceeded
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\x64\Release\NativeCodeAnalysis.read.1.tlog
