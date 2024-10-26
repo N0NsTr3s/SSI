@@ -4,10 +4,9 @@
 #include <memory>
 #include <string_view>
 #include <cstdint>
-#include <vector>
-#include <tchar.h>
-
-
+#include <tchar.h>-
+#include "Offsets.h"
+#include <thread>
 
 typedef struct _NULL_MEMORY {
     void* buffer_address;
@@ -195,14 +194,74 @@ bool write(UINT_PTR write_address, const S& value) {
     return write_memory(write_address, reinterpret_cast<UINT_PTR>(&value), sizeof(S));
 }
 
+std::vector<uintptr_t> entities = {};
+
+void esp::loop() {
+    uintptr_t entity_list = Read<uintptr_t>(base_address + client_dll::dwEntityList);
+    uintptr_t local_player = Read<uintptr_t>(base_address + client_dll::dwLocalPlayerPawn);
+    BYTE local_player_team = Read<BYTE>(local_player + C_BaseEntity::m_iTeamNum);
+    std::vector<uintptr_t> buffer = {};
+    for (int i = 0; i < 64; i++) {
+        uintptr_t listEntity = Read<uintptr_t>(entity_list + ((8 * (i & 0x7ff) >> 9) + 16));
+        if (!listEntity) {
+            continue;
+        }
+
+        uintptr_t entityController = Read<uintptr_t>(listEntity + 120 * (i & 0x1ff));
+        if (!entityController) {
+            continue;
+        }
+        uintptr_t entity = Read<uintptr_t>(entityController + 120 * (entityController & 0x1ff));
+        if (entity) {
+            buffer.emplace_back(entity);
+        }
+    }
+    entities = buffer;
+    Sleep(10);
+}
+void esp::render() {
+    auto vm = Read<viewMatrix_t>(base_address + client_dll::dwViewMatrix);
+    for (uintptr_t entity : entities) {
+        vec3 absOrigin = Read<vec3>(entity + C_BasePlayerPawn::m_vOldOrigin);
+        vec3 eyePos = absOrigin + Read<vec3>(entity + C_BaseModelEntity::m_vecViewOffset);
+
+        vec2 feet, head;
+        if (w2s(absOrigin, head, vm.matrix) && w2s(eyePos, feet, vm.matrix)) {
+            float width = head.y - feet.y;
+            feet.x += width;
+            feet.y -= width;
+            draw_box(feet.x, feet.y, width, head.y - feet.y, 255, 0, 0, 1);
+        }
+    }
+};
+
+
+bool esp::w2s(const vec3& pos, vec2& screen, float matrix[16]) {
+    vec4 clipCoords;
+    clipCoords.x = pos.x * matrix[0] + pos.y * matrix[1] + pos.z * matrix[2] + matrix[3];
+    clipCoords.y = pos.x * matrix[4] + pos.y * matrix[5] + pos.z * matrix[6] + matrix[7];
+    clipCoords.z = pos.x * matrix[8] + pos.y * matrix[9] + pos.z * matrix[10] + matrix[11];
+    clipCoords.w = pos.x * matrix[12] + pos.y * matrix[13] + pos.z * matrix[14] + matrix[15];
+
+    if (clipCoords.w < 0.1f) return false;
+
+    vec3 ndc;
+
+    ndc.x = clipCoords.x / clipCoords.w;
+
+    ndc.y = clipCoords.y / clipCoords.w;
+};
+
 int main() {
     try {
 		std::cout << get_module_base_address("Taskmgr.exe") << std::endl;
         std::cout << "Entering loop...\n";
-        for (int i = 0; i < 1000; i++) {
-            draw_box(100, 100, 100, 100, 255, 0, 0, 5);
-        }
-    }
+        
+		
+		std::thread read(esp::loop);
+		std::thread render(esp::render);
+	}
+		
     catch (const std::exception& e) {
         std::cerr << "Exception: " << e.what() << "\n";
     }
