@@ -55,10 +55,9 @@ typedef struct _PEB_LDR_DATA {
 } PEB_LDR_DATA, *PPEB_LDR_DATA;
 
 typedef struct _LDR_DATA_TABLE_ENTRY {
-    LIST_ENTRY InLoadOrderLinks;
-    LIST_ENTRY InMemoryOrderLinks;
-    LIST_ENTRY InInitializationOrderLinks;
     LIST_ENTRY InLoadOrderModuleList;
+    LIST_ENTRY InMemoryOrderModuleList;
+    LIST_ENTRY InInitializationOrderModuleList;
     PVOID DllBase;
     PVOID EntryPoint;
     ULONG SizeOfImage;
@@ -68,6 +67,8 @@ typedef struct _LDR_DATA_TABLE_ENTRY {
     USHORT LoadCount;
     USHORT TlsIndex;
     LIST_ENTRY HashLinks;
+	PVOID SectiomPointer;
+	ULONG CheckSum;
     ULONG TimeDateStamp;
 } LDR_DATA_TABLE_ENTRY, *PLDR_DATA_TABLE_ENTRY;
 
@@ -90,7 +91,7 @@ typedef struct _RTL_PROCESS_MODULES {
 } RTL_PROCESS_MODULES, *PRTL_PROCESS_MODULES;
 
 typedef struct _RTL_USER_PROCESS_PARAMETERS {
-    UCHAR Reserved1[16];
+    BYTE Reserved1[16];
     PVOID Reserved2[10];
     UNICODE_STRING ImagePathName;
     UNICODE_STRING CommandLine;
@@ -110,12 +111,14 @@ typedef struct _PEB {
     PVOID Reserved5;
     ULONG Reserved6;
     PVOID Reserved7;
+	ULONG Reserved8;
     ULONG AtlThunkSListPtr32;
     PVOID Reserved9[45];
     BYTE Reserved10[96];
     PPS_POST_PROCESS_INIT_ROUTINE PostProcessInitRoutine;
     BYTE Reserved11[128];
     PVOID Reserved12[1];
+	ULONG SessionId;
 } PEB, *PPEB;
 
 extern "C" __declspec(dllimport)

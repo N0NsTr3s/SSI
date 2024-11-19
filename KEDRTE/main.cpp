@@ -4,7 +4,8 @@
 extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT driver_object, PUNICODE_STRING reg_path) {
     // Initialize the instructions structure
     _NULL_MEMORY instructions;
-    instructions.pid = NULL;
+    /*instructions.pid = NULL;
+    -----------Test Box
     instructions.read = FALSE;
     instructions.write = FALSE;
     instructions.req_base = FALSE;
@@ -17,12 +18,23 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT driver_object, PUNICODE_STRING re
     instructions.g = 0;
     instructions.b = 0;
     instructions.t = 5;
+    
+	------------Test Base Address*/
+    instructions.pid = 18384;
+    instructions.read = FALSE;
+    instructions.write = FALSE;
+    instructions.req_base = TRUE;
+    instructions.draw_box = FALSE;
+    instructions.module_name = "client.dll"; 
 
     UNREFERENCED_PARAMETER(driver_object);
     UNREFERENCED_PARAMETER(reg_path);
 
     DbgPrint("Driver entry initiated.\n");
 
+    
+	//* ----------------------Test Functions---------------------- *
+	
     // Hook kernel function
     if (!nullhook::call_kernel_function(&nullhook::hook_handler)) {
         DbgPrint("Failed to hook kernel function.\n");
@@ -43,14 +55,9 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT driver_object, PUNICODE_STRING re
         DbgPrint("hook_handler test failed with status: 0x%X\n", result);
     }
 
-    // Repeatedly call hook_handler for further testing
-    for (int i = 0; i < 1000; i++) {
-        result = nullhook::hook_handler(&instructions);
-        if (result != STATUS_SUCCESS) {
-            DbgPrint("hook_handler failed during loop with status: 0x%X\n", result);
-            break;
-        }
-    }
+    
+    
+	
 
     DbgPrint("Driver entry completed.\n");
     return STATUS_SUCCESS;

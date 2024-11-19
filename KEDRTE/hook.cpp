@@ -20,11 +20,11 @@ bool nullhook::call_kernel_function(void* kernel_function_address)
         return false;
     }
 
-    PVOID* function = reinterpret_cast<PVOID*>(get_system_module_export("\\SystemRoot\\System32\\win32kfull.sys", "NtUserGetAltTabInfo"));
+    PVOID* function = reinterpret_cast<PVOID*>(get_system_module_export("\\SystemRoot\\System32\\win32kbase.sys", "NtCreateImplicitCompositionInputSink"));
 
 
     if (!function) {
-        DbgPrint("Failed to get function address from dxgkrnl.sys.\n");
+        DbgPrint("Failed to get function address from win32kfull.sys or dxgkrnl.sys.\n");
         return false;
     }
 
@@ -92,21 +92,30 @@ NTSTATUS nullhook::hook_handler(PVOID called_param) {
 
         ANSI_STRING AS;
         UNICODE_STRING ModuleName;
+        __try {
+            RtlInitAnsiString(&AS, instructions->module_name);
+            RtlAnsiStringToUnicodeString(&ModuleName, &AS, TRUE);
 
-        RtlInitAnsiString(&AS, instructions->module_name);
-        RtlAnsiStringToUnicodeString(&ModuleName, &AS, TRUE);
+            PEPROCESS Process;
+            NTSTATUS status = PsLookupProcessByProcessId((HANDLE)instructions->pid, &Process);
+            if (!NT_SUCCESS(status)) {
+                DbgPrint("Failed to lookup process by PID: %lu\n", instructions->pid);
+                return STATUS_UNSUCCESSFUL;
+            }
 
-        PEPROCESS Process;
-        PsLookupProcessByProcessId((HANDLE)instructions->pid, &Process);
-        ULONG64 base_address64 = NULL;
+            ptrdiff_t base_address64 = NULL;
+            base_address64 = get_module_base_x64(Process, ModuleName);
+            instructions->base_address = base_address64;
 
-        base_address64 = get_module_base_x64(Process, ModuleName);
-        instructions->base_address = base_address64;
+            RtlFreeUnicodeString(&ModuleName);
 
-        RtlFreeUnicodeString(&ModuleName);
-
-        DbgPrint("Base address: %p\n", base_address64);
-    }
+            DbgPrint("Base address: %llx\n", base_address64);
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER){
+			DbgPrint("Failed to get base address.\n");
+			return STATUS_UNSUCCESSFUL;
+        }
+        }
     else if (instructions->write == TRUE) {
         DbgPrint("Writing to memory: PID=%lu, Address=%p, Size=%llu\n", instructions->pid, instructions->address, instructions->size);
 
@@ -135,6 +144,7 @@ NTSTATUS nullhook::hook_handler(PVOID called_param) {
 
         if (instructions->address < 0x7FFFFFFFFFFF && instructions->address > 0) {
             read_kernel_memory((HANDLE)instructions->pid, instructions->address, instructions->output, instructions->size);
+			DbgPrint("Data read: %s\n", instructions->output);
         }
     }
     else if (instructions->draw_box == TRUE) {
@@ -157,10 +167,24 @@ NTSTATUS nullhook::hook_handler(PVOID called_param) {
 
         NtUserReleaseDC(hdc);
         NtGdiDeleteObjectApp(brush);
+       
+		
+			
 
         DbgPrint("Box drawn successfully.\n");
-    }
+        for (int i = 0; i < 5; i++) {
+            NtUserReleaseDC(hdc);
+            NtGdiDeleteObjectApp(brush);
+			DeleteObjectApp_t((HANDLE)brush);
+			NtGdiDeleteObjectApp((HANDLE)brush);
+		
 
+
+
+        }
+		
+    }
+	
     return STATUS_SUCCESS;
 }
 
@@ -181,7 +205,9 @@ INT nullhook::FrameRect(HDC hDC, CONST RECT* lprc, HBRUSH hbr, int thickness) {
     NtGdiPatBlt(hDC, r.left, r.bottom - thickness, r.right - r.left, thickness, PATCOPY);
 
     NtGdiSelectBrush(hDC, oldbrush);
-
+    
     DbgPrint("Exiting FrameRect.\n");
+    NtUserReleaseDC(hDC);
+    NtGdiDeleteObjectApp(hDC);
     return TRUE;
 }

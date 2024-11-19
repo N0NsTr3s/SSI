@@ -175,69 +175,88 @@ bool write_to_read_only_memory(void* address, void* buffer, size_t size)
 }
 
 // Function to get module base for x64
-ULONG64 get_module_base_x64(PEPROCESS proc, UNICODE_STRING module_name)
+ULONG_PTR get_module_base_x64(PEPROCESS proc, UNICODE_STRING module_name)
 {
     DbgPrint("Getting module base for: %wZ get_module_base_x64\n", &module_name);
+
     PPEB pPeb = PsGetProcessPeb(proc);
-    if (!pPeb)
-    {
-        DbgPrint("Failed to get PEB.\n");
+    if (!pPeb) {
+        DbgPrint("Failed to get PEB or Ldr is uninitialized.\n");
         return NULL;
     }
 
     KAPC_STATE state;
     KeStackAttachProcess(proc, &state);
     DbgPrint("Successfully attached to process.\n");
+
     PPEB_LDR_DATA pLdr = (PPEB_LDR_DATA)pPeb->Ldr;
-    if (!pLdr)
-    {
+    if (!pLdr) {
         KeUnstackDetachProcess(&state);
         DbgPrint("Failed to get LDR.\n");
         return NULL;
     }
+
     DbgPrint("Iterating through module list.\n");
-    for (PLIST_ENTRY list = pLdr->ModuleListLoadOrder.Flink;
-         list != &pLdr->ModuleListLoadOrder;
-         list = list->Flink)
+    for (PLIST_ENTRY list = (PLIST_ENTRY)pLdr->ModuleListLoadOrder.Flink;
+        list != &pLdr->ModuleListLoadOrder;
+        list = (PLIST_ENTRY)list->Flink)
     {
-        DbgPrint("Inspecting module.\n");
         PLDR_DATA_TABLE_ENTRY pEntry = CONTAINING_RECORD(list, LDR_DATA_TABLE_ENTRY, InLoadOrderModuleList);
         if (RtlCompareUnicodeString(&pEntry->BaseDllName, &module_name, TRUE) == 0)
         {
-            ULONG64 baseAddr = reinterpret_cast<ULONG64>(pEntry->DllBase);
+			ULONG_PTR baseAddr = (ULONG64)pEntry->DllBase;
             KeUnstackDetachProcess(&state);
-            DbgPrint("Found module base: %p\n", reinterpret_cast<void*>(baseAddr));
+            DbgPrint("Found module base: %p\n", baseAddr);
             return baseAddr;
         }
     }
 
     KeUnstackDetachProcess(&state);
-    return NULL;
+    DbgPrint("Module not found.\n");
+    return 0;
 }
 
+
 // Function to read kernel memory
-bool read_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t size)
-{
-    DbgPrint("Reading kernel memory: PID=%lu, Address=%p, Buffer=%p, Size=%u\n", pid, address, buffer, size);
-    if (!address || !buffer || !size) {
+bool read_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t size) {
+    DbgPrint("Reading kernel memory: PID=%lu, Address=%p, Buffer=%p, Size=%zu\n", pid, (void*)address, buffer, size);
+
+    if (!address || !buffer || size == 0) {
         DbgPrint("Invalid parameters.\n");
         return false;
     }
-    DbgPrint("Parameters are valid.\n");
-    SIZE_T bytes = 0;
+
     PEPROCESS process;
     NTSTATUS status = PsLookupProcessByProcessId(pid, &process);
     if (!NT_SUCCESS(status)) {
-		DbgPrint("Failed to lookup process.\n");
+        DbgPrint("Failed to find process for PID=%lu. Status=0x%X\n", pid, status);
         return false;
     }
-    status = MmCopyVirtualMemory(process, (void*)address, PsGetCurrentProcess(), buffer, size, KernelMode, &bytes);
-	DbgPrint("Copied %u bytes.\n", bytes);
-    return NT_SUCCESS(status);
+
+
+    SIZE_T bytes = 0;
+    status = MmCopyVirtualMemory(
+        process,
+        (void*)address,
+        PsGetCurrentProcess(),
+        buffer,
+        size,
+        KernelMode,
+        &bytes
+    );
+
+    if (!NT_SUCCESS(status)) {
+        DbgPrint("MmCopyVirtualMemory failed with status: 0x%X\n", status);
+        return false;
+    }
+
+    DbgPrint("Successfully copied %zu bytes from address %p\n", bytes, (void*)address);
+    return true;
 }
 
+
 // Function to write to kernel memory
-bool write_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t size)
+bool write_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, SIZE_T size)
 {
 	DbgPrint("Writing to kernel memory: PID=%lu, Address=%p, Buffer=%p, Size=%u\n", pid, address, buffer, size);
     if (!address || !buffer || !size)
@@ -245,16 +264,14 @@ bool write_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t siz
 		DbgPrint("Invalid parameters2.\n");
         return false;
     }
+
     PEPROCESS process;
-    NTSTATUS status = PsLookupProcessByProcessId(pid, &process);
+    NTSTATUS status = STATUS_SUCCESS;
+    PsLookupProcessByProcessId(pid, &process);
 	DbgPrint("Lookup process status: %x\n", status);
-    if (!NT_SUCCESS(status))
-    {
-		DbgPrint("Failed to lookup process2.\n");
-        return false;
-    }
+   
     KAPC_STATE state;
-    KeStackAttachProcess(process, &state);
+    KeStackAttachProcess((PEPROCESS)process, &state);
 
     MEMORY_BASIC_INFORMATION info;
     status = ZwQueryVirtualMemory(ZwCurrentProcess(), (PVOID)address, MemoryBasicInformation, &info, sizeof(info), NULL);
@@ -265,7 +282,18 @@ bool write_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t siz
         return false;
     }
 
-    if ((info.Protect & PAGE_READWRITE) || (info.Protect & PAGE_WRITECOPY) || (info.Protect & PAGE_EXECUTE_READWRITE)) {
+	if (((uintptr_t)info.BaseAddress + info.RegionSize) < (address + size)) {
+		KeUnstackDetachProcess(&state);
+        return false;
+	}
+
+	if (!(info.State & MEM_COMMIT) || (info.Protect & (PAGE_GUARD | PAGE_NOACCESS))) {
+		KeUnstackDetachProcess(&state);
+		DbgPrint("Memory is not committed.\n");
+		return false;
+	}
+
+    if ((info.Protect & PAGE_READWRITE) || (info.Protect & PAGE_EXECUTE_WRITECOPY) || (info.Protect & PAGE_EXECUTE_READWRITE)|| (info.Protect & PAGE_WRITECOPY)) {
 		DbgPrint("Memory is writable.\n");
         RtlCopyMemory((void*)address, buffer, size);
 
