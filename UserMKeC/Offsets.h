@@ -4,23 +4,23 @@
 
 
 namespace client_dll {
-    constexpr std::ptrdiff_t dwCSGOInput = 0x1A5C240;
-    constexpr std::ptrdiff_t dwEntityList = 0x19F0468;
-    constexpr std::ptrdiff_t dwGameEntitySystem = 0x1B0ACB8;
+    constexpr std::ptrdiff_t dwCSGOInput = 0x1A5D240;
+    constexpr std::ptrdiff_t dwEntityList = 0x19F1468;
+    constexpr std::ptrdiff_t dwGameEntitySystem = 0x1B0BCB8;
     constexpr std::ptrdiff_t dwGameEntitySystem_highestEntityIndex = 0x1520;
-    constexpr std::ptrdiff_t dwGameRules = 0x1A4DE28;
-    constexpr std::ptrdiff_t dwGlobalVars = 0x18479D0;
-    constexpr std::ptrdiff_t dwGlowManager = 0x1A4D568;
-    constexpr std::ptrdiff_t dwLocalPlayerController = 0x1A3FF90;
-    constexpr std::ptrdiff_t dwLocalPlayerPawn = 0x1853CE8;
-    constexpr std::ptrdiff_t dwPlantedC4 = 0x1A57E90;
-    constexpr std::ptrdiff_t dwPrediction = 0x1853B80;
-    constexpr std::ptrdiff_t dwSensitivity = 0x1A4EB48;
+    constexpr std::ptrdiff_t dwGameRules = 0x1A4EE28;
+    constexpr std::ptrdiff_t dwGlobalVars = 0x18489D0;
+    constexpr std::ptrdiff_t dwGlowManager = 0x1A4E568;
+    constexpr std::ptrdiff_t dwLocalPlayerController = 0x1A40F90;
+    constexpr std::ptrdiff_t dwLocalPlayerPawn = 0x1854CF8;
+    constexpr std::ptrdiff_t dwPlantedC4 = 0x1A58E90;
+    constexpr std::ptrdiff_t dwPrediction = 0x1854B90;
+    constexpr std::ptrdiff_t dwSensitivity = 0x1A4FB48;
     constexpr std::ptrdiff_t dwSensitivity_sensitivity = 0x40;
-    constexpr std::ptrdiff_t dwViewAngles = 0x1A5C610;
-    constexpr std::ptrdiff_t dwViewMatrix = 0x1A52510;
-    constexpr std::ptrdiff_t dwViewRender = 0x1A52D20;
-    constexpr std::ptrdiff_t dwWeaponC4 = 0x19F3590;
+    constexpr std::ptrdiff_t dwViewAngles = 0x1A5D610;
+    constexpr std::ptrdiff_t dwViewMatrix = 0x1A53510;
+    constexpr std::ptrdiff_t dwViewRender = 0x1A53D20;
+    constexpr std::ptrdiff_t dwWeaponC4 = 0x19F4598;
 }
 
 
@@ -60,6 +60,7 @@ namespace C_BaseModelEntity {
     constexpr std::ptrdiff_t m_bUseClientOverrideTint = 0xCEC; // bool
 }
 
+
 namespace C_BasePlayerPawn {
     constexpr std::ptrdiff_t m_pWeaponServices = 0x11A8; // CPlayer_WeaponServices*
     constexpr std::ptrdiff_t m_pItemServices = 0x11B0; // CPlayer_ItemServices*
@@ -90,6 +91,7 @@ namespace C_BasePlayerPawn {
     constexpr std::ptrdiff_t m_hController = 0x133C; // CHandle<CBasePlayerController>
     constexpr std::ptrdiff_t m_bIsSwappingToPredictableController = 0x1340; // bool
 }
+
 
 namespace C_BaseEntity {
     constexpr std::ptrdiff_t m_CBodyComponent = 0x38; // CBodyComponent*
@@ -175,6 +177,7 @@ namespace C_BaseEntity {
     constexpr std::ptrdiff_t m_sUniqueHammerID = 0x558; // CUtlString
     constexpr std::ptrdiff_t m_nBloodType = 0x560; // BloodType
 }
+
 namespace CCSPlayerController {
     constexpr std::ptrdiff_t m_pInGameMoneyServices = 0x720; // CCSPlayerController_InGameMoneyServices*
     constexpr std::ptrdiff_t m_pInventoryServices = 0x728; // CCSPlayerController_InventoryServices*

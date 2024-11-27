@@ -1,6 +1,6 @@
 ﻿  Building 'KEDRTE' with toolset 'WindowsKernelModeDriver10.0' and the 'Universal' target platform.
   Stamping x64\Release\KEDRTE.inf
-  Stamping [Version] section with DriverVer=11/20/2024,0.20.9.316
+  Stamping [Version] section with DriverVer=11/21/2024,21.59.21.317
   definitions.cpp
   hook.cpp
   main.cpp

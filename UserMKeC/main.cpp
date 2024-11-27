@@ -21,6 +21,7 @@ std::vector<uintptr_t> entities;
 int screen_width = 1540;//GetSystemMetrics(SM_CXSCREEN);
 int screen_height = 1000;//GetSystemMetrics(SM_CYSCREEN);
 
+
 int PID;
 #pragma pack(push, 1)
 typedef struct _NULL_MEMORY {
@@ -249,7 +250,7 @@ struct vec2
     float x, y;
 };
 
-bool w2s(const vec3& world, vec2& screen, float m[16]) {
+bool w2s(const vec3& world, vec2& screen, const float m[16]) {
     vec4 clipCoord;
     clipCoord.x = world.x * m[0] + world.y * m[1] + world.z * m[2] + m[3];
     clipCoord.y = world.x * m[4] + world.y * m[5] + world.z * m[6] + m[7];
@@ -263,19 +264,52 @@ bool w2s(const vec3& world, vec2& screen, float m[16]) {
     ndc.y = clipCoord.y / clipCoord.w;
 
     screen.x = ((screen_width / 2) * (1 + ndc.x));
-    screen.y = ((screen_height / 2) * (1 + ndc.y));
+    screen.y = ((screen_height / 2) * (1 - ndc.y)); // Note the inversion of y-axis
 
     return true;
 }
 
+int returnPlayerTeam(uintptr_t entity_list) {
+    for (int i = 0; i < 64; i++) {
+        uintptr_t listEntry = Read<uintptr_t>(entity_list + ((8 * (i & 0x7fff) >> 9) + 16));
+        std::cout << '\n' << '\n';
+        if (!listEntry) {
+            std::cout << "List entry is null.\n\n";
+            continue;
+        }
+
+        uintptr_t entityController = Read<uintptr_t>(listEntry + 120 * (i & 0x1ff));
+        if (!entityController) {
+            std::cout << "Entity controller is null.\n\n";
+            continue;
+        }
+
+        uintptr_t entityControllerPawn = Read<uintptr_t>(entityController + CCSPlayerController::m_hPlayerPawn);
+        if (!entityControllerPawn) {
+            std::cout << "Entity controller pawn is null.\n\n";
+            continue;
+        }
+
+        uintptr_t CSPlayerPawn = Read<uintptr_t>(listEntry + 120 * (entityControllerPawn & 0x1ff));
+
+
+        int team = Read<int>(CSPlayerPawn + C_BaseEntity::m_iTeamNum);
+        std::cout << "Player Team: " << team << std::endl;
+        if (team != 0) 
+            return team;
+
+
+    }
+};
 
 
 void loop(ptrdiff_t base_address=get_module_base_address("client.dll")) {
-    
+    int team = {};
+    // All of this should be multithreaded
 	std::cout << "Entering Game loop...\n";
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(6));
-    Sleep(50);
+    std::this_thread::sleep_for(std::chrono::milliseconds(3));
+
     std::cout << "Base Address: 0x" << std::hex << base_address << "\n";
     std::cout << "Offset: 0x" << std::hex << client_dll::dwEntityList << "\n";
     std::cout << "Target Address: 0x" << std::hex << (base_address + client_dll::dwEntityList) << "\n";
@@ -287,18 +321,22 @@ void loop(ptrdiff_t base_address=get_module_base_address("client.dll")) {
     std::cout << "Target Address: 0x" << std::hex << (base_address + client_dll::dwLocalPlayerPawn) << "\n";
     uint32_t localPlayerPawn = static_cast<uint32_t>(Read<uintptr_t>(base_address + client_dll::dwLocalPlayerPawn));
 	std::cout << "Local player pawn: " << localPlayerPawn << std::endl;
-    
-    std::cout << "Base Address: 0x" << std::hex << base_address << "\n";
-    std::cout << "Offset: 0x" << std::hex << C_BaseEntity::m_iTeamNum << "\n";
-    std::cout << "Target Address: 0x" << std::hex << (base_address + C_BaseEntity::m_iTeamNum) << "\n";
-    BYTE team = static_cast<BYTE>(Read<uintptr_t>(localPlayerPawn + C_BaseEntity::m_iTeamNum));
-    std::cout << "Team: " << static_cast<int>(team) << std::endl;
 
+	uint32_t localPlayerController = Read<uint32_t>(base_address + client_dll::dwLocalPlayerController);
+    std::cout << "localPlayerController: " << localPlayerController << std::endl;
+
+
+            
+	team = returnPlayerTeam(entity_list);
+        
+    
+	std::cout << "My Team: " << team << std::endl;
+	//Sleep(5000);// <- That`s for testing purposes
     while (get_process_id("cs2.exe") != 0) {
 		std::cout << "Looping inside the game...\n";
         std::vector<uintptr_t> buffer = {};
-        for (int i = 0; i < 32; i++) {
-            Sleep(100);
+        for (int i = 0; i < 64; i++) {
+           
             uintptr_t listEntry = Read<uintptr_t>(entity_list + ((8 * (i & 0x7fff) >> 9) + 16));
             std::cout << '\n' << '\n';
             if (!listEntry) {
@@ -318,6 +356,19 @@ void loop(ptrdiff_t base_address=get_module_base_address("client.dll")) {
                 continue;
             }
 
+			uintptr_t CSPlayerPawn = Read<uintptr_t>(listEntry + 120 * (entityControllerPawn & 0x1ff));
+
+			if (!CSPlayerPawn) continue;
+
+			int health = Read<int>(CSPlayerPawn + C_BaseEntity::m_iHealth);
+			std::cout << "Health: " << health << std::endl;
+
+			if (health<1 || health > 100) continue;
+
+			int PlayerTeam = Read<int>(CSPlayerPawn + C_BaseEntity::m_iTeamNum);
+			std::cout << "Player Team: " << PlayerTeam << std::endl;
+			if (PlayerTeam == team) continue;
+
             uintptr_t entity = Read<uintptr_t>(listEntry + 120 * (entityControllerPawn & 0x1ff));
             
             if (entity) {
@@ -336,7 +387,7 @@ void loop(ptrdiff_t base_address=get_module_base_address("client.dll")) {
 }
 void ShowingPl(ptrdiff_t base_address = get_module_base_address("client.dll")) {
     std::cout << "Trying to draw the players...\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(6));
+    std::this_thread::sleep_for(std::chrono::milliseconds(3));
     view_matrix_t vm = Read<view_matrix_t>(base_address + client_dll::dwViewMatrix);
     std::cout << entities.size() << std::endl;
     for (uintptr_t entity : entities) {
@@ -345,16 +396,16 @@ void ShowingPl(ptrdiff_t base_address = get_module_base_address("client.dll")) {
         vec3 eyePos = absOrigin + Read<vec3>(entity + C_BaseModelEntity::m_vecViewOffset);
 
         vec2 head, feet;
-        
+
         if (w2s(absOrigin, head, vm.matrix)) {
             std::cout << "Head: " << head.x << ", " << head.y << std::endl;
 
             if (w2s(eyePos, feet, vm.matrix)) {
-                float width = (feet.y - head.y);
-                feet.x += width;
-                feet.y += width;
-                //UpdateWindow(NULL); ???
-                draw_box(static_cast<int>(head.x), static_cast<int>(head.y), static_cast<int>(feet.x - head.x), static_cast<int>(feet.y - head.y), 255, 0, 0, 1);
+                float height = feet.y - head.y;
+                float width = height / 2.2f; // Adjust width as needed
+                feet.x = head.x + width;
+                feet.y = head.y + height;
+                draw_box(static_cast<int>(head.x), static_cast<int>(head.y), static_cast<int>(width), static_cast<int>(height), 255, 0, 0, 2);
             }
         }
     }
@@ -440,7 +491,7 @@ void TransparentOverlayThread(HINSTANCE hInstance) {
     SetWindowPos(g_hWnd,HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
     // Set a timer for periodic refresh (e.g., ~60 FPS with 16ms interval)
-    SetTimer(g_hWnd, 1, 6, NULL);
+    SetTimer(g_hWnd, 1, 3, NULL);
 
     // Message loop for the overlay
     MSG msg = {};
@@ -462,7 +513,7 @@ int main(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmd
 		if (!process_id) {
 			std::cerr << "Failed to get process ID.\n";
 
-            Sleep(10000);
+            //Sleep(10000);
 			return 1;
 		}
         else {
@@ -487,6 +538,7 @@ int main(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmd
         overlayThread.detach();
 		while (true)
 		{       
+            //Sleep(5000);// <- That`s for testing purposes
 			ShowingPl(base_address);
 		}
 
