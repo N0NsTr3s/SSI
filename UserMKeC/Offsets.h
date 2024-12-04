@@ -4,23 +4,23 @@
 
 
 namespace client_dll {
-    constexpr std::ptrdiff_t dwCSGOInput = 0x1A5D240;
-    constexpr std::ptrdiff_t dwEntityList = 0x19F1468;
-    constexpr std::ptrdiff_t dwGameEntitySystem = 0x1B0BCB8;
+    constexpr std::ptrdiff_t dwCSGOInput = 0x1A5E280;
+    constexpr std::ptrdiff_t dwEntityList = 0x19F2488;
+    constexpr std::ptrdiff_t dwGameEntitySystem = 0x1B0CCF8;
     constexpr std::ptrdiff_t dwGameEntitySystem_highestEntityIndex = 0x1520;
-    constexpr std::ptrdiff_t dwGameRules = 0x1A4EE28;
-    constexpr std::ptrdiff_t dwGlobalVars = 0x18489D0;
-    constexpr std::ptrdiff_t dwGlowManager = 0x1A4E568;
-    constexpr std::ptrdiff_t dwLocalPlayerController = 0x1A40F90;
-    constexpr std::ptrdiff_t dwLocalPlayerPawn = 0x1854CF8;
-    constexpr std::ptrdiff_t dwPlantedC4 = 0x1A58E90;
-    constexpr std::ptrdiff_t dwPrediction = 0x1854B90;
-    constexpr std::ptrdiff_t dwSensitivity = 0x1A4FB48;
+    constexpr std::ptrdiff_t dwGameRules = 0x1A4FE68;
+    constexpr std::ptrdiff_t dwGlobalVars = 0x18499C0;
+    constexpr std::ptrdiff_t dwGlowManager = 0x1A4F5A8;
+    constexpr std::ptrdiff_t dwLocalPlayerController = 0x1A41FD0;
+    constexpr std::ptrdiff_t dwLocalPlayerPawn = 0x1855CE8;
+    constexpr std::ptrdiff_t dwPlantedC4 = 0x1A59ED0;
+    constexpr std::ptrdiff_t dwPrediction = 0x1855B80;
+    constexpr std::ptrdiff_t dwSensitivity = 0x1A50B88;
     constexpr std::ptrdiff_t dwSensitivity_sensitivity = 0x40;
-    constexpr std::ptrdiff_t dwViewAngles = 0x1A5D610;
-    constexpr std::ptrdiff_t dwViewMatrix = 0x1A53510;
-    constexpr std::ptrdiff_t dwViewRender = 0x1A53D20;
-    constexpr std::ptrdiff_t dwWeaponC4 = 0x19F4598;
+    constexpr std::ptrdiff_t dwViewAngles = 0x1A5E650;
+    constexpr std::ptrdiff_t dwViewMatrix = 0x1A54550;
+    constexpr std::ptrdiff_t dwViewRender = 0x1A54D60;
+    constexpr std::ptrdiff_t dwWeaponC4 = 0x19F55F8;
 }
 
 
@@ -91,7 +91,6 @@ namespace C_BasePlayerPawn {
     constexpr std::ptrdiff_t m_hController = 0x133C; // CHandle<CBasePlayerController>
     constexpr std::ptrdiff_t m_bIsSwappingToPredictableController = 0x1340; // bool
 }
-
 
 namespace C_BaseEntity {
     constexpr std::ptrdiff_t m_CBodyComponent = 0x38; // CBodyComponent*
