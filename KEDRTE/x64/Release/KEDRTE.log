@@ -1,11 +1,12 @@
 ﻿  Building 'KEDRTE' with toolset 'WindowsKernelModeDriver10.0' and the 'Universal' target platform.
   Stamping x64\Release\KEDRTE.inf
-  Stamping [Version] section with DriverVer=11/06/2024,22.34.25.701
-  definitions.cpp
+  Stamping [Version] section with DriverVer=12/18/2024,0.25.41.588
   hook.cpp
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\hook.cpp(122,32): warning C4996: 'ExAllocatePool': ExAllocatePool is deprecated, use ExAllocatePool2.
+C:\Users\Edi\source\repos\KEDRTE\KEDRTE\hook.cpp(281,19): warning C4267: 'argument': conversion from 'size_t' to 'UINT', possible loss of data
+C:\Users\Edi\source\repos\KEDRTE\KEDRTE\hook.cpp(186,32): warning C4996: 'ExAllocatePool': ExAllocatePool is deprecated, use ExAllocatePool2.
   main.cpp
   Memory.cpp
+C:\Users\Edi\source\repos\KEDRTE\KEDRTE\Memory.cpp(389,14): warning C4189: 'statusAlloc': local variable is initialized but not referenced
   Generating Code...
   KEDRTE.vcxproj -> C:\Users\Edi\source\repos\KEDRTE\x64\Release\KEDRTE.sys
   Driver is 'Universal'.
