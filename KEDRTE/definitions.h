@@ -9,6 +9,11 @@
 #include <ntstrsafe.h>
 #include <wdm.h>
 
+
+#define MM_MAX_NUMAXES   16
+#define LF_FACESIZE   32
+#define LF_FULLFACESIZE   64
+
 // Contains basic information about the system.
 typedef struct _SYSTEM_BASIC_INFORMATION {
     BYTE Reserved1[24];
@@ -30,7 +35,7 @@ typedef enum _SYSTEM_INFORMATION_CLASS {
     SystemFlagsInformation,      // Fixed typo
     SystemCallTimeInformation,
     SystemModuleInformation = 0x0B
-} SYSTEM_INFORMATION_CLASS, *PSYSTEM_INFORMATION_CLASS;
+} SYSTEM_INFORMATION_CLASS, * PSYSTEM_INFORMATION_CLASS;
 
 // Contains information about a system process.
 typedef struct _SYSTEM_PROCESS_INFORMATION {
@@ -61,7 +66,7 @@ typedef struct _PEB_LDR_DATA {
     LIST_ENTRY ModuleListLoadOrder;    // A list of modules in load order.
     LIST_ENTRY ModuleListMemoryOrder;  // A list of modules in memory order.
     LIST_ENTRY ModuleListInitOrder;    // A list of modules in initialization order.
-} PEB_LDR_DATA, *PPEB_LDR_DATA;
+} PEB_LDR_DATA, * PPEB_LDR_DATA;
 
 // Represents an entry in the loader data table.
 // The LDR_DATA_TABLE_ENTRY structure is used by the system to store information about a loaded module.
@@ -88,7 +93,7 @@ typedef struct _LDR_DATA_TABLE_ENTRY {
     // It is calculated based on the contents of the module and can be used to detect changes or corruption.
     ULONG CheckSum;
     ULONG TimeDateStamp;                // Time and date stamp of the module.
-} LDR_DATA_TABLE_ENTRY, *PLDR_DATA_TABLE_ENTRY;
+} LDR_DATA_TABLE_ENTRY, * PLDR_DATA_TABLE_ENTRY;
 
 
 // Contains information about a process module.
@@ -116,13 +121,13 @@ typedef struct _RTL_PROCESS_MODULE_INFORMATION {
     // It is used to locate and access elements within a data structure or memory block by adding the offset to the base address of the structure or block.
     USHORT OffsetToFileName;       // Offset to the module's file name.
     UCHAR FullPathName[256];       // Full path name of the module.
-} RTL_PROCESS_MODULE_INFORMATION, *PRTL_PROCESS_MODULE_INFORMATION;
+} RTL_PROCESS_MODULE_INFORMATION, * PRTL_PROCESS_MODULE_INFORMATION;
 
 // Contains information about all process modules.
 typedef struct _RTL_PROCESS_MODULES {
     ULONG NumberOfModules;
     RTL_PROCESS_MODULE_INFORMATION Modules[1];
-} RTL_PROCESS_MODULES, *PRTL_PROCESS_MODULES;
+} RTL_PROCESS_MODULES, * PRTL_PROCESS_MODULES;
 
 // Contains user process parameters.
 typedef struct _RTL_USER_PROCESS_PARAMETERS {
@@ -130,7 +135,7 @@ typedef struct _RTL_USER_PROCESS_PARAMETERS {
     PVOID Reserved2[10];
     UNICODE_STRING ImagePathName;
     UNICODE_STRING CommandLine;
-} RTL_USER_PROCESS_PARAMETERS, *PRTL_USER_PROCESS_PARAMETERS;
+} RTL_USER_PROCESS_PARAMETERS, * PRTL_USER_PROCESS_PARAMETERS;
 
 // Function pointer for post-process initialization routine.
 typedef void(__stdcall* PPS_POST_PROCESS_INIT_ROUTINE)(void);
@@ -185,7 +190,7 @@ PVOID
 NTAPI
 RtlFindExportedRoutineByName(
     _In_ PVOID ImageBase,
-    _In_ PCCH RoutineName   
+    _In_ PCCH RoutineName
 );
 
 // Function to query system information.
@@ -196,9 +201,9 @@ RtlFindExportedRoutineByName(
 // - ReturnLength: A pointer to a variable that receives the number of bytes written to the buffer.
 // Returns: An NTSTATUS code indicating the success or failure of the operation.
 extern "C" NTSTATUS ZwQuerySystemInformation(
-    ULONG InfoClass, 
-    PVOID Buffer, 
-    ULONG Length, 
+    ULONG InfoClass,
+    PVOID Buffer,
+    ULONG Length,
     PULONG ReturnLength
 );
 
@@ -275,3 +280,104 @@ typedef struct tagPAINTSTRUCT {
     BOOL fIncUpdate;     // Reserved; must be FALSE.
     BYTE rgbReserved[32];// Reserved for future use.
 } PAINTSTRUCT, * PPAINTSTRUCT, * NPPAINTSTRUCT, * LPPAINTSTRUCT;
+
+
+
+
+typedef struct _FLOATOBJ
+{
+    ULONG  ul1;
+    ULONG  ul2;
+} FLOATOBJ, * PFLOATOBJ;
+
+
+typedef LONG FIX;
+
+typedef struct _MATRIX
+{
+    FLOATOBJ efM11;
+    FLOATOBJ efM12;
+    FLOATOBJ efM21;
+    FLOATOBJ efM22;
+    FLOATOBJ efDx;
+    FLOATOBJ efDy;
+    FIX fxDx;
+    FIX fxDy;
+    FLONG flAccel;
+} MATRIX, * PMATRIX;
+
+
+typedef struct _RGN_ATTR
+{
+    ULONG AttrFlags;
+    ULONG Flags;     /* Clipping region's complexity. NULL, SIMPLE & COMPLEXREGION */
+    RECTL Rect;
+} RGN_ATTR, * PRGN_ATTR;
+
+
+typedef struct _DC_ATTR
+{
+    PVOID pvLDC;
+    ULONG ulDirty_;
+    HANDLE hbrush;
+    HANDLE hpen;
+    COLORREF crBackgroundClr;
+    ULONG ulBackgroundClr;
+    COLORREF crForegroundClr;
+    ULONG ulForegroundClr;
+    COLORREF crBrushClr;
+    ULONG ulBrushClr;
+    COLORREF crPenClr;
+    ULONG ulPenClr;
+    DWORD iCS_CP;
+    INT iGraphicsMode;
+    BYTE jROP2;
+    BYTE jBkMode;
+    BYTE jFillMode;
+    BYTE jStretchBltMode;
+    POINTL ptlCurrent;
+    POINTL ptfxCurrent;
+    LONG lBkMode;
+    LONG lFillMode;
+    LONG lStretchBltMode;
+    FLONG flFontMapper;
+    LONG lIcmMode;
+    HANDLE hcmXform;
+    HCOLORSPACE hColorSpace;
+    FLONG flIcmFlags;
+    INT IcmBrushColor;
+    INT IcmPenColor;
+    PVOID pvLIcm;
+    FLONG flTextAlign;
+    LONG lTextAlign;
+    LONG lTextExtra;
+    LONG lRelAbs;
+    LONG lBreakExtra;
+    LONG cBreak;
+    HANDLE hlfntNew;
+    MATRIX mxWorldToDevice;
+    MATRIX mxDeviceToWorld;
+    MATRIX mxWorldToPage;
+    FLOATOBJ efM11PtoD;
+    FLOATOBJ efM22PtoD;
+    FLOATOBJ efDxPtoD;
+    FLOATOBJ efDyPtoD;
+    INT iMapMode;
+    DWORD dwLayout;
+    LONG lWindowOrgx;
+    POINTL ptlWindowOrg;
+    SIZEL szlWindowExt;
+    POINTL ptlViewportOrg;
+    SIZEL szlViewportExt;
+    FLONG flXform;
+    SIZEL szlVirtualDevicePixel;
+    SIZEL szlVirtualDeviceMm;
+    SIZEL szlVirtualDeviceSize;
+    POINTL ptlBrushOrigin;
+    RGN_ATTR VisRectRegion;
+} DC_ATTR, * PDC_ATTR;
+
+
+
+
+typedef DWORD LFTYPE;

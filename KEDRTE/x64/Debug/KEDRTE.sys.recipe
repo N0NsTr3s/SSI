@@ -2,7 +2,7 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\x64\Release\KEDRTE.sys</FullPath>
+      <FullPath>C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\x64\Debug\KEDRTE.sys</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

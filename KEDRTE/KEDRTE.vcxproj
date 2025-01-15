@@ -106,7 +106,6 @@
     <Link>
       <EntryPointSymbol>DriverEntry</EntryPointSymbol>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
       <TreatWarningAsError>false</TreatWarningAsError>
@@ -136,6 +135,7 @@
     <ClInclude Include="Memory.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="definitions.cpp" />
     <ClCompile Include="hook.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Memory.cpp" />
