@@ -1,16 +1,10 @@
-/*
-An operating system (OS) is a fundamental software component that manages computer hardware and
-software resources and provides common services for computer programs. It acts as an intermediary
-between users and the computer hardware, ensuring that applications can run efficiently and effectively.
-*/
-
 #include <iostream>
 #include <Windows.h>
 #include <TlHelp32.h>
 #include <memory>
 #include <string_view>
 #include <cstdint>
-#include <tchar.h>
+#include <tchar.h>-
 #include "Offsets.h"
 #include <thread>
 #include <algorithm>
@@ -29,11 +23,11 @@ between users and the computer hardware, ensuring that applications can run effi
 std::mutex players_mutex;
 std::atomic<bool> running = true;
 std::vector<uintptr_t> entities;
-int screen_width = 1540;
-int screen_height = 1000;
+int screen_width = 1884;//GetSystemMetrics(SM_CXSCREEN);
+int screen_height = 786;// GetSystemMetrics(SM_CYSCREEN);
+
 
 int PID;
-
 #pragma pack(push, 1)
 typedef struct _NULL_MEMORY {
     void* buffer_address;
@@ -44,59 +38,57 @@ typedef struct _NULL_MEMORY {
     BOOLEAN read;
     BOOLEAN req_base;
     BOOLEAN draw_box;
-    INT r, g, b, x, y, w, h, t;
+    int r, g, b, x, y, w, h, t;
     void* output;
     const char* module_name;
     ULONG64 base_address;
     BOOLEAN draw_text;
-    WCHAR text[256];
+    CHAR text[256];
 } NULL_MEMORY;
 #pragma pack(pop)
 
+
 HDC hdc;
 
-/**
- * @brief Calls a function from the win32u.dll library with the provided arguments.
- *
- * This template function is used to call a specific function from the win32u.dll library.
- * The function to be called is determined by its name, "NtCreateImplicitCompositionInputSink".
- * The template allows for flexibility in the number and types of arguments that can be passed to the function.
- *
- * @tparam Arg Variadic template parameter pack representing the types of arguments to be passed to the function.
- * @param args The arguments to be passed to the function.
- * @return The result of the function call, or FALSE if the library or function could not be loaded.
- */
 template<typename ... Arg>
 uint64_t call_hook(const Arg ... args) {
-    static HMODULE hModule = LoadLibrary("win32u.dll");
-    if (!hModule) {
+    LoadLibrary("user32.dll");
+    void* hooked_func = nullptr;
+    HMODULE hModule = LoadLibrary("win32u.dll");
+    if (hModule) {
+        hooked_func = GetProcAddress(hModule, "NtCreateImplicitCompositionInputSink");
+        if (!hooked_func) {
+            std::cerr << "Failed to get the address of NtUserGetAltTabInfo / NtCreateImplicitCompositionInputSink.\n";
+            return FALSE;
+        }
+    }
+    else {
         std::cerr << "Failed to load win32u.dll.\n";
         return FALSE;
     }
 
-    /**
-     * Retrieves the address of the function "NtCreateImplicitCompositionInputSink" from the loaded library.
-     *
-     * The reinterpret_cast is used here to convert the function pointer obtained from GetProcAddress to the appropriate type.
-     * 
-     * @note reinterpret_cast is used because it allows any pointer type to be converted into any other pointer type.
-     * This is necessary here because GetProcAddress returns a generic FARPROC (essentially a void pointer), and we need to
-     * convert it to a specific function pointer type. Other casts like static_cast or dynamic_cast are not suitable for this
-     * purpose because they are more restrictive and do not allow such conversions.
-     */
-    static auto func = reinterpret_cast<uint64_t(_stdcall*)(Arg...)>(GetProcAddress(hModule, "NtCreateImplicitCompositionInputSink"));
-    if (!func) {
-        std::cerr << "Failed to get the address of NtCreateImplicitCompositionInputSink.\n";
-        return FALSE;
-    }
+    //std::cout << "Hooked function address: " << hooked_func << "\n";
 
-    return func(args...);
+    // Cast the function pointer to the correct type
+    //auto func = reinterpret_cast<uint64_t(__fastcall*)(Arg...)>(hooked_func);
+    auto func = static_cast<uint64_t(_stdcall*)(Arg...)>(hooked_func);              //<- This is the original line
+    //auto func = reinterpret_cast<uint64_t(__fastcall*)(Arg...)>(hooked_func);
+	//std::cout << "Function pointer: " << func << "\n";
+
+	//std::cout << " Attempting to return function pointer: " << func(args...) << "\n";
+	return func(args...);                                                           //<- This does not return anything so we just have to figure it why? may be the function signature or a bug
 }
+
+
+
+
+
 
 struct HandleDisposer {
     using pointer = HANDLE;
     void operator()(HANDLE handle) const {
-        if (handle != NULL && handle != INVALID_HANDLE_VALUE) {
+        if (handle != NULL || handle != INVALID_HANDLE_VALUE) {
+            std::cout << "Closing handle: " << handle << std::endl;
             CloseHandle(handle);
         }
     }
@@ -104,56 +96,67 @@ struct HandleDisposer {
 
 using unique_handle = std::unique_ptr<HANDLE, HandleDisposer>;
 
-//Converts string to lowercase
+
+// Helper function to convert a string to lowercase
 std::string to_lowercase(std::string str) {
     std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return std::tolower(c); });
     return str;
 }
 
-/**
- * Retrieves the process ID of a given process name.
- *
- * This function takes a process name as input and returns the process ID (PID) of the first matching process.
- * It uses the Toolhelp32 API to create a snapshot of all running processes and then iterates through them
- * to find the process with the specified name.
- *
- * @param process_name The name of the process to find.
- * @return The process ID of the specified process, or 0 if the process is not found or an error occurs.
- */
 static std::uint32_t get_process_id(std::string_view process_name) {
-    PROCESSENTRY32 process_entry; // Structure to store process information
-    const unique_handle snapshot_handle(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL)); // Create a snapshot of all running processes
-    if (snapshot_handle.get() == INVALID_HANDLE_VALUE) { // Check if snapshot creation failed
+    std::cout << "Attempting to get process ID for: " << process_name << "\n";
+    PROCESSENTRY32 process_entry;
+    const unique_handle snapshot_handle(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL));
+    if (snapshot_handle.get() == INVALID_HANDLE_VALUE) {
         std::cerr << "Failed to create snapshot handle.\n";
         return NULL;
     }
 
-    process_entry.dwSize = sizeof(PROCESSENTRY32); // Initialize the size of the process entry structure
-    if (!Process32First(snapshot_handle.get(), &process_entry)) { // Get the first process in the snapshot
+    process_entry.dwSize = sizeof(PROCESSENTRY32);
+    if (!Process32First(snapshot_handle.get(), &process_entry)) {
         std::cerr << "Failed to get first process entry.\n";
         return 0;
     }
 
-    std::string target_process_name = to_lowercase(std::string(process_name)); // Convert the target process name to lowercase
+    std::string target_process_name = to_lowercase(std::string(process_name));
 
     do {
-        std::string current_process_name = to_lowercase(process_entry.szExeFile); // Convert the current process name to lowercase
-        if (target_process_name == current_process_name) { // Check if the current process name matches the target process name
-            return process_entry.th32ProcessID; // Return the process ID if a match is found
+        std::string current_process_name = to_lowercase(process_entry.szExeFile);
+        if (target_process_name == current_process_name) {
+            std::cout << "Found process: " << process_entry.szExeFile << ", Process ID: " << process_entry.th32ProcessID << std::endl;
+            return process_entry.th32ProcessID;
         }
-    } while (Process32Next(snapshot_handle.get(), &process_entry)); // Iterate through the remaining processes in the snapshot
+    } while (Process32Next(snapshot_handle.get(), &process_entry));
 
     std::cerr << "Process not found: " << process_name << "\n";
     return 0;
 }
 
 static ptrdiff_t get_module_base_address(const char* module_name) {
+    std::cout << "Attempting to get module base address...\n";
+
     NULL_MEMORY instructions = { 0 };
-    instructions.pid = get_process_id("cs2.exe");
+	instructions.pid = get_process_id("cs2.exe");
     instructions.req_base = TRUE;
+    instructions.read = FALSE;
+    instructions.write = FALSE;
+    instructions.draw_box = FALSE;
     instructions.module_name = module_name;
 
+    std::cout << "NULL_MEMORY details: PID: " << instructions.pid << '\n'
+        << "Module: " << instructions.module_name << '\n';
+
     call_hook(&instructions);
+    std::cout << "After call_hook, base_address: " << instructions.base_address << "\n";  // Log base_address
+
+    ptrdiff_t base = NULL;
+	base = instructions.base_address;
+    if (!base) {
+        std::cerr << "Failed to get the base address from call_hook.\n";
+    }
+    else {
+        std::cout << "Module base address: " << base << "\n";
+    }
 
     return instructions.base_address;
 }
@@ -161,18 +164,20 @@ static ptrdiff_t get_module_base_address(const char* module_name) {
 template<class T>
 T Read(UINT_PTR read_address) {
     T response{};
-    NULL_MEMORY instructions = { 0 };
+    NULL_MEMORY instructions;
+    //std::cout << "Address being passed: " << read_address << std::endl;
     instructions.pid = PID;
     instructions.read = TRUE;
     instructions.size = sizeof(T);
     instructions.address = read_address;
     instructions.output = &response;
-
+    instructions.req_base = FALSE;
+    instructions.write = FALSE;
+    instructions.draw_box = FALSE;
     call_hook(&instructions);
 
     return response;
 }
-
 
 bool write_memory(UINT_PTR write_address, UINT_PTR source_address, SIZE_T write_size) {
     NULL_MEMORY instructions;
@@ -184,41 +189,10 @@ bool write_memory(UINT_PTR write_address, UINT_PTR source_address, SIZE_T write_
     instructions.req_base = FALSE;
     instructions.read = FALSE;
     instructions.draw_box = FALSE;
-	instructions.draw_text = FALSE;
     call_hook(&instructions);
 
     return true;
 }
-
-bool draw_text(int x, int y, const wchar_t* text) {
-    if (!text || wcslen(text) == 0) {
-        std::wcerr << L"Invalid or empty text provided.\n";
-        return false;
-    }
-
-    NULL_MEMORY instructions = { 0 };
-    instructions.write = FALSE;
-    instructions.read = FALSE;
-    instructions.req_base = FALSE;
-    instructions.draw_box = FALSE;
-    instructions.draw_text = TRUE;
-    instructions.x = x;
-    instructions.y = y;
-
-    // Safely copy the text into the fixed-size buffer
-    wcsncpy_s(instructions.text, text, _countof(instructions.text) - 1);
-    instructions.text[_countof(instructions.text) - 1] = L'\0'; // Null-terminate
-
-    std::wcout << L"User-mode text: " << instructions.text << L"\n";
-
-    // Call the kernel hook
-    call_hook(&instructions);
-
-    return true;
-}
-
-
-
 
 bool draw_box(int x, int y, int w, int h, int r, int g, int b, int t) {
     NULL_MEMORY instructions;
@@ -226,7 +200,6 @@ bool draw_box(int x, int y, int w, int h, int r, int g, int b, int t) {
     instructions.read = FALSE;
     instructions.req_base = FALSE;
     instructions.draw_box = TRUE;
-	instructions.draw_text = FALSE;
     instructions.x = x;
     instructions.y = y;
     instructions.w = w;
@@ -237,16 +210,33 @@ bool draw_box(int x, int y, int w, int h, int r, int g, int b, int t) {
     instructions.t = t;
     call_hook(&instructions);
 
-    std::cout << "Drawing box at (" << x << ", " << y << ") with width " << w << " and height " << h << "\n";
+    //std::cout << "Drawing box at (" << x << ", " << y << ") with width " << w << " and height " << h << "\n";
     return true;
 }
 
+bool draw_text(int x, int y, CHAR* text) {
 
 
+    NULL_MEMORY instructions = { 0 };
+    instructions.draw_text = TRUE;
+    instructions.write = FALSE;
+    instructions.read = FALSE;
+    instructions.req_base = FALSE;
+    instructions.draw_box = FALSE;
 
+    instructions.x = x;
+    instructions.y = y;
 
+    // Safely copy the text into the fixed-size buffer
+    strncpy_s(instructions.text, sizeof(instructions.text), text, _TRUNCATE);
 
+    //std::cout << "User-mode text: " << instructions.text << "\n";
 
+    // Call the kernel hook
+    call_hook(&instructions);
+    memset(instructions.text, 0, sizeof(instructions.text));
+    return true;
+}
 
 template<typename S>
 bool write(UINT_PTR write_address, const S& value) {
@@ -276,15 +266,6 @@ struct vec3
     }
 
     vec3 RelativeAngle()
-    /**
-     * Calculates the relative angle of the vector.
-     *
-     * This function computes the relative angle of the vector in degrees.
-     * It uses the arctangent function to determine the angle in the x-y plane
-     * and the angle relative to the z-axis.
-     *
-     * @return A vec3 object containing the relative angles in degrees.
-     */
     {
         return {
             std::atan2(-z, std::hypot(x, y)) * (180.0f / std::numbers::pi_v<float>),
@@ -300,34 +281,19 @@ struct vec2
     float x, y;
 };
 
-/**
- *  Converts world coordinates to screen coordinates.
- *
- * This function takes world coordinates and a transformation matrix, and converts the world coordinates
- * to screen coordinates. It returns true if the conversion is successful, and false otherwise.
- *
- * @param world The world coordinates to be converted.
- * @param screen The resulting screen coordinates.
- * @param m The transformation matrix.
- * @return True if the conversion is successful, false otherwise.
- */
 bool w2s(const vec3& world, vec2& screen, const float m[16]) {
     vec4 clipCoord;
-    // Transform the world coordinates to clip space coordinates using the transformation matrix.
     clipCoord.x = world.x * m[0] + world.y * m[1] + world.z * m[2] + m[3];
     clipCoord.y = world.x * m[4] + world.y * m[5] + world.z * m[6] + m[7];
     clipCoord.z = world.x * m[8] + world.y * m[9] + world.z * m[10] + m[11];
     clipCoord.w = world.x * m[12] + world.y * m[13] + world.z * m[14] + m[15];
 
-    // If the w component is less than a small threshold, the point is behind the camera.
     if (clipCoord.w < 0.1f) return false;
 
     vec3 ndc;
-    // Normalize the clip space coordinates to get normalized device coordinates (NDC).
     ndc.x = clipCoord.x / clipCoord.w;
     ndc.y = clipCoord.y / clipCoord.w;
 
-    // Convert NDC to screen coordinates.
     screen.x = ((screen_width / 2) * (1 + ndc.x));
     screen.y = ((screen_height / 2) * (1 - ndc.y)); // Note the inversion of y-axis
 
@@ -336,41 +302,56 @@ bool w2s(const vec3& world, vec2& screen, const float m[16]) {
 
 int returnPlayerTeam(uintptr_t entity_list) {
     for (int i = 0; i < 64; i++) {
-       
+
         uintptr_t listEntry = Read<uintptr_t>(entity_list + ((8 * (i & 0x7fff) >> 9) + 16));
         std::cout << '\n' << '\n';
         if (!listEntry) {
-            std::cout << "List entry is null.\n\n";
+            //std::cout << "List entry is null.\n\n";
             continue;
         }
 
         uintptr_t entityController = Read<uintptr_t>(listEntry + 120 * (i & 0x1ff));
         if (!entityController) {
-            std::cout << "Entity controller is null.\n\n";
+            //std::cout << "Entity controller is null.\n\n";
             continue;
         }
 
         uintptr_t entityControllerPawn = Read<uintptr_t>(entityController + CCSPlayerController::m_hPlayerPawn);
         if (!entityControllerPawn) {
-            std::cout << "Entity controller pawn is null.\n\n";
+            //std::cout << "Entity controller pawn is null.\n\n";
             continue;
         }
 
         uintptr_t CSPlayerPawn = Read<uintptr_t>(listEntry + 120 * (entityControllerPawn & 0x1ff));
-	
+
 
         int team = Read<int>(CSPlayerPawn + C_BaseEntity::m_iTeamNum);
-        std::cout << "Player Team: " << team << std::endl;
-        if (team != 0) 
+        //std::cout << "Player Team: " << team << std::endl;
+        if (team != 0)
             return team;
 
 
     }
 };
 
+std::string read_name(uintptr_t entityController) {
+    std::string name;
+    char ch;
+    uintptr_t address = entityController + CBasePlayerController::m_iszPlayerName;
+    while ((ch = Read<char>(address++)) != '\0') {
+        name += ch;
+    }
+    return name;
+}
+
 struct PlayerInfo {
     uintptr_t entity;
     int health;
+    int armor;
+    bool helmet;
+    bool vest;
+    std::string name;
+    short weaponId;
     vec3 absOrigin;
     vec3 eyePos;
     vec3 prevAbsOrigin;
@@ -381,53 +362,26 @@ PlayerInfo playerBuffer1[64];
 PlayerInfo playerBuffer2[64];
 std::atomic<int> currentBuffer = 0; // Atomic to avoid race conditions
 
-
-void loop(ptrdiff_t base_address = get_module_base_address("client.dll")) {
-    std::cout << "Starting game loop...\n";
-
+static void loop(ptrdiff_t base_address = get_module_base_address("client.dll")) {
     static const uintptr_t entity_list = Read<uintptr_t>(base_address + client_dll::dwEntityList);
     static const int local_team = returnPlayerTeam(entity_list);
 
-    while (get_process_id("cs2.exe") != 0) {
-        
-        /**
-         * Determine the write buffer
-         * The current buffer index is stored in an atomic variable `currentBuffer`.
-         * The write buffer index is set to 1 if the current buffer index is 0, otherwise it is set to 0.
-         * The write buffer is then selected based on the write buffer index.
-
-         */
+    while (running.load()) {
         int writeBufferIndex = currentBuffer.load() == 0 ? 1 : 0;
         PlayerInfo* writeBuffer = (writeBufferIndex == 0) ? playerBuffer1 : playerBuffer2;
 
         size_t playerCount = 0;
 
         for (int i = 0; i < 64 && playerCount < 64; i++) {
-            /*
-            * Breaking down listEntry calculation:
-            * i & 0x7fff: A bitwise AND operation that limits i to the lower 15 bits (i.e., i % 32768), ensuring the result stays within a range of 0 to 32767 (2^15).
-            * 8 * (i & 0x7fff): Multiplies the result of (i & 0x7fff) by 8. This represents the size of each entry in the entity list.
-            * >> 9: A bitwise right shift by 9 positions, equivalent to dividing by 2^9 = 512. This reduces the index range further, effectively selecting a page of entities.
-            * ((8 * (i & 0x7fff) >> 9) + 16): Adds 16 to the result. This is the offset within the structure, pointing to a specific field.
-           */
             uintptr_t listEntry = Read<uintptr_t>(entity_list + ((8 * (i & 0x7fff) >> 9) + 16));
             if (!listEntry) continue;
-            /*
-			 * Breaking down entityController calculation:
-             * i & 0x1ff: A bitwise AND operation with 0x1ff (binary 111111111 or decimal 511). In effect, this divides the entities into "pages" or blocks of size 512 and selects an entity within the current page.
-             * 120 * (i & 0x1ff): This calculation gives the byte offset to the specific entity within the list.
-            */
+
             uintptr_t entityController = Read<uintptr_t>(listEntry + 120 * (i & 0x1ff));
             if (!entityController) continue;
 
             uintptr_t entityControllerPawn = Read<uintptr_t>(entityController + CCSPlayerController::m_hPlayerPawn);
             if (!entityControllerPawn) continue;
 
-            /*
-			 * Breaking Down CSPlayerPawn Calculation:
-             * & 0x1ff: A bitwise AND operation with 0x1ff (binary 111111111 or decimal 511). This ensures the access is restricted to one of 512 possible slots in a "page" or group of entries.
-			 * 120 * (entityControllerPawn & 0x1ff): This calculation determines the byte offset for the specific entry corresponding to the entityControllerPawn.
-            */
             uintptr_t CSPlayerPawn = Read<uintptr_t>(listEntry + 120 * (entityControllerPawn & 0x1ff));
             if (!CSPlayerPawn) continue;
 
@@ -437,26 +391,40 @@ void loop(ptrdiff_t base_address = get_module_base_address("client.dll")) {
             int team = Read<int>(CSPlayerPawn + C_BaseEntity::m_iTeamNum);
             if (team == local_team) continue;
 
+            intptr_t weapon = Read<intptr_t>(CSPlayerPawn + C_CSPlayerPawnBase::m_pClippingWeapon);
+            short weaponId = Read<short>(weapon + C_EconEntity::m_AttributeManager + C_AttributeContainer::m_Item + C_EconItemView::m_iItemDefinitionIndex);
+
+            if (weaponId == -1) continue;
+
             vec3 absOrigin = Read<vec3>(CSPlayerPawn + C_BasePlayerPawn::m_vOldOrigin);
             vec3 viewOffset = Read<vec3>(CSPlayerPawn + C_BaseModelEntity::m_vecViewOffset);
+            int armor = Read<int>(CSPlayerPawn + C_CSPlayerPawn::m_ArmorValue);
+            bool helmet = Read<bool>(CSPlayerPawn + C_CSPlayerPawn::m_bPrevHelmet);
+            bool vest = (helmet == 0 && armor != 0);
+
+            std::string name = read_name(entityController);
 
             writeBuffer[playerCount++] = PlayerInfo{
                 CSPlayerPawn,
                 health,
+                armor,
+                helmet,
+                vest,
+                name,
+                weaponId,
                 absOrigin,
                 absOrigin + viewOffset,
-                absOrigin // Store previous position for potential interpolation
+                absOrigin
             };
         }
 
-        // Lock and switch the current buffer
         {
             std::lock_guard<std::mutex> lock(players_mutex);
             players.assign(writeBuffer, writeBuffer + playerCount);
-            currentBuffer.store(writeBufferIndex); // Update the buffer index atomically
+            currentBuffer.store(writeBufferIndex);
+            
         }
-
-       
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 }
 
@@ -464,14 +432,92 @@ struct RenderInfo {
     vec2 head;
     vec2 feet;
     int health;
+    int armor;
+    bool helmet;
+    bool vest;
+    std::string name;
+    short weaponId;
 };
 
 std::vector<RenderInfo> renderBuffer1;
 std::vector<RenderInfo> renderBuffer2;
 std::atomic<int> currentRenderBuffer = 0; // Atomic index to determine the active render buffer
 
+
+
+
+
+std::string getWeaponName(int weaponID) {
+    switch (weaponID) {
+    case 1: return "DEAGLE";
+    case 2: return "ELITE";
+    case 3: return "FIVESEVEN";
+    case 4: return "GLOCK";
+    case 7: return "AK47";
+    case 8: return "AUG";
+    case 9: return "AWP";
+    case 10: return "FAMAS";
+    case 11: return "G3SG1";
+    case 13: return "GALILAR";
+    case 14: return "M249";
+    case 16: return "M4A1";
+    case 17: return "MAC10";
+    case 19: return "P90";
+    case 24: return "UMP";
+    case 25: return "XM1014";
+    case 26: return "BIZON";
+    case 27: return "MAG7";
+    case 28: return "NEGEV";
+    case 29: return "SAWEDOFF";
+    case 30: return "TEC9";
+    case 31: return "TASER";
+    case 32: return "HKP2000";
+    case 33: return "MP7";
+    case 34: return "MP9";
+    case 35: return "NOVA";
+    case 36: return "P250";
+    case 38: return "SCAR20";
+    case 39: return "SG556";
+    case 40: return "SSG08";
+    case 42: return "KNIFE";
+    case 43: return "FLASHBANG";
+    case 44: return "HEGRENADE";
+    case 45: return "SMOKEGRENADE";
+    case 46: return "MOLOTOV";
+    case 47: return "DECOY";
+    case 48: return "INCGRENADE";
+    case 49: return "C4";
+    case 59: return "KNIFE_T";
+    case 60: return "M4A1_SILENCER";
+    case 61: return "USP_SILENCER";
+    case 63: return "CZ75A";
+    case 64: return "REVOLVER";
+    case 500: return "BAYONET";
+    case 505: return "KNIFE_FLIP";
+    case 506: return "KNIFE_GUT";
+    case 507: return "KNIFE_KARAMBIT";
+    case 508: return "KNIFE_M9_BAYONET";
+    case 509: return "KNIFE_TACTICAL";
+    case 512: return "KNIFE_FALCHION";
+    case 514: return "KNIFE_SURVIVAL_BOWIE";
+    case 515: return "KNIFE_BUTTERFLY";
+    case 516: return "KNIFE_PUSH";
+    case 526: return "KNIFE_KUKRI";
+    default: return "UNKNOWN_WEAPON";
+    }
+}      // Debug prints
+        /*
+        std::cout << "Rendering player: " << renderInfo.name << "\n";
+        std::cout << "Position: (" << x << ", " << y << ")\n";
+        std::cout << "Dimensions: width=" << width << ", height=" << height << "\n";
+        std::cout << "Health: " << renderInfo.health << "\n";
+        std::cout << "Armor: " << renderInfo.armor << "\n";
+        std::cout << "Helmet: " << (renderInfo.helmet ? "Yes" : "No") << "\n";
+        std::cout << "Vest: " << (renderInfo.vest ? "Yes" : "No") << "\n";
+        std::cout << "Weapon: " << getWeaponName(renderInfo.weaponId) << "\n";
+        */
+
 void ShowingPl(ptrdiff_t base_address = get_module_base_address("client.dll")) {
-    std::cout << "Preparing rendering instructions...\n";
     view_matrix_t vm = Read<view_matrix_t>(base_address + client_dll::dwViewMatrix);
 
     // Determine the write buffer
@@ -483,6 +529,7 @@ void ShowingPl(ptrdiff_t base_address = get_module_base_address("client.dll")) {
     // Lock the players vector and prepare rendering instructions
     {
         std::lock_guard<std::mutex> lock(players_mutex);
+        writeBuffer.reserve(players.size()); // Reserve memory to avoid multiple allocations
         for (const auto& player : players) {
             vec2 head, feet;
 
@@ -491,10 +538,15 @@ void ShowingPl(ptrdiff_t base_address = get_module_base_address("client.dll")) {
                 float width = height / 2.2f;
 
                 // Add rendering information to the write buffer
-                writeBuffer.push_back(RenderInfo{
+                writeBuffer.emplace_back(RenderInfo{
                     head,
                     feet,
-                    player.health
+                    player.health,
+                    player.armor,
+                    player.helmet,
+                    player.vest,
+                    player.name,
+                    player.weaponId
                     });
             }
         }
@@ -507,22 +559,46 @@ void ShowingPl(ptrdiff_t base_address = get_module_base_address("client.dll")) {
     int readBufferIndex = (writeBufferIndex == 0) ? 1 : 0;
     const std::vector<RenderInfo>& readBuffer = (readBufferIndex == 0) ? renderBuffer1 : renderBuffer2;
 
-    std::cout << "Rendering players...\n";
     for (const auto& renderInfo : readBuffer) {
         float height = renderInfo.feet.y - renderInfo.head.y;
-        float width = height / 2.2f;
+        float width = height / 2.0f;
         int x = static_cast<int>(renderInfo.head.x);
         int y = static_cast<int>(renderInfo.head.y);
-
+  
         // Draw bounding box
-        draw_box(x, y, static_cast<int>(width), static_cast<int>(height), 255, 0, 0, 2);
+        draw_box(x + 40, y + 50, static_cast<int>(width) - 50, static_cast<int>(height) - 50, 50, 50, 50, 1);
 
         // Draw health
-        WCHAR buffer[32];
-        swprintf(buffer, sizeof(buffer) / sizeof(wchar_t), L"%d", renderInfo.health);
-        draw_text(x + static_cast<int>(width) + 5, y, buffer); // Offset health display
+        CHAR HP[32];
+        snprintf(HP, sizeof(HP), "HP: %d", renderInfo.health);
+        draw_text(x + static_cast<int>(width) - 10, y + 52, HP); // Offset health display
+
+        // Draw armor/helmet
+        CHAR armor[32];
+        if (renderInfo.helmet) {
+            snprintf(armor, sizeof(armor), "FullArmor: %d", renderInfo.armor);
+        }
+        else {
+            snprintf(armor, sizeof(armor), "Vest: %d", renderInfo.armor);
+        }
+        draw_text(x + static_cast<int>(width) - 10, y + 35, armor); // Offset helmet display
+		
+        // Draw name
+        CHAR name[128];
+        snprintf(name, sizeof(name), "%s", renderInfo.name.c_str());
+        draw_text(x + static_cast<int>(width) - 13, y + static_cast<int>(height) - 18, name); // Offset name display
+
+        // Draw weapon
+        std::string weaponName = getWeaponName(renderInfo.weaponId);
+        CHAR weapon[128];
+        snprintf(weapon, sizeof(weapon), "Weapon: %s", weaponName.c_str());
+        draw_text(x + static_cast<int>(width) - 13, y + static_cast<int>(height) - 35, weapon); // Offset weapon display
+		readBuffer.empty(); // Clear the read buffer
+		writeBuffer.clear(); // Clear the write buffer
     }
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
 }
+
 
 
 // Function to run the loop in a separate thread
@@ -534,6 +610,7 @@ void run_loop_in_thread(ptrdiff_t base_address) {
 
 
 void run_showPL_in_thread(ptrdiff_t base_address) {
+    
     std::thread showPL_thread(ShowingPl, base_address);
     showPL_thread.detach(); // Detach the thread to run independently
 }
@@ -603,10 +680,10 @@ void TransparentOverlayThread(HINSTANCE hInstance) {
     // Show the window and ensure it stays on top
     ShowWindow(g_hWnd, WS_EX_TOPMOST);
     UpdateWindow(g_hWnd);
-    SetWindowPos(g_hWnd,HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    SetWindowPos(g_hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
     // Set a timer for periodic refresh (e.g., ~60 FPS with 16ms interval)
-    SetTimer(g_hWnd, 1, 3, NULL);
+    SetTimer(g_hWnd, 1, 2, NULL);
 
     // Message loop for the overlay
     MSG msg = {};
@@ -619,63 +696,43 @@ void TransparentOverlayThread(HINSTANCE hInstance) {
 
 
 
-
-
-
-
-
 int main(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-	
+
+
+
     std::thread overlayThread(TransparentOverlayThread, hInstance);
     PID = get_process_id("cs2.exe");
 
-	Sleep(1900);
+    Sleep(1900);
     // Take a look if you can search for client.dll memory region
-	try {
-		std::cout << "Getting process ID...\n";
-		uint32_t process_id = get_process_id("cs2.exe");
-		if (!process_id) {
-			std::cerr << "Failed to get process ID.\n";
+    try {
 
-            //Sleep(10000);
-			return 1;
-		}
-        else {
-			std::cout << "Process ID: " << process_id << "\n";
-        }
-
-		std::cout << "Getting module base address...\n";
-		ptrdiff_t base_address = get_module_base_address("client.dll");
-		std::cout << base_address << std::endl;
+        std::cout << "Getting module base address...\n";
+        ptrdiff_t base_address = get_module_base_address(const_cast<char*>("client.dll"));
+        std::cout << base_address << std::endl;
         std::cout << "Entering loop...\n";
 
-      
-        
-		run_loop_in_thread(base_address);
 
-		/*for (int i = 10; i < 10; i++)
-        {
-            ShowingPl(base_address);
-        }*/
-        //std::thread window(CreateTransparentWindow);
-        //window.detach();
         overlayThread.detach();
-		//run_showPL_in_thread(base_address);
-		while (true)
-		{       
-            //Sleep(5000);// <- That`s for testing purposes
-			ShowingPl(base_address);
-		}
+        run_loop_in_thread(base_address);
+  
+        while (true) {
+            ShowingPl(base_address);
+        }
+        
+       
+        
+    
 
-	}
-		
+    }
+
     catch (const std::exception& e) {
         std::cerr << "Exception: " << e.what() << "\n";
     }
     catch (...) {
         std::cerr << "Unknown exception occurred.\n";
     }
-	Sleep(10000);
+    Sleep(10000);
     return 0;
 
 
