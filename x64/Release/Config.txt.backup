@@ -1,0 +1,5 @@
+HP=False
+Armor=True
+Name=False
+Weapon=True
+Players=True
