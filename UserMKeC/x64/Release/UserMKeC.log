@@ -1,9 +1,10 @@
 ﻿cl : command line  warning D9025: overriding '/sdl' with '/GS-'
   main.cpp
-C:\Users\Edi\source\repos\KEDRTE\UserMKeC\main.cpp(7,10): warning C4067: unexpected tokens following preprocessor directive - expected a newline
+C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\UserMKeC\main.cpp(7,10): warning C4067: unexpected tokens following preprocessor directive - expected a newline
+C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\UserMKeC\main.cpp(630,25): warning C4858: discarding return value: This member function returns a bool indicating whether the collection is empty and has no other effects. It is not useful to call this member function and discard the return value. Use the 'clear()' member function if you want to erase all elements.
   Generating code
   Previous IPDB not found, fall back to full compilation.
-C:\Users\Edi\source\repos\KEDRTE\UserMKeC\main.cpp(303): warning C4715: 'returnPlayerTeam': not all control paths return a value
-  All 295 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\UserMKeC\main.cpp(358): warning C4715: 'returnPlayerTeam': not all control paths return a value
+  All 488 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   Finished generating code
-  UserMKeC.vcxproj -> C:\Users\Edi\source\repos\KEDRTE\x64\Release\UserMKeC.exe
+  UserMKeC.vcxproj -> C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\x64\Release\UserMKeC.exe
