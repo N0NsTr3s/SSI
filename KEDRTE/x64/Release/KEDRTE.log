@@ -1,11 +1,26 @@
 ﻿  Building 'KEDRTE' with toolset 'WindowsKernelModeDriver10.0' and the 'Universal' target platform.
   Stamping x64\Release\KEDRTE.inf
-  Stamping [Version] section with DriverVer=11/21/2024,21.59.21.317
+  Stamping [Version] section with DriverVer=01/15/2025,19.48.39.724
   definitions.cpp
   hook.cpp
   main.cpp
-C:\Users\Edi\source\repos\KEDRTE\KEDRTE\hook.cpp(123,32): warning C4996: 'ExAllocatePool': ExAllocatePool is deprecated, use ExAllocatePool2.
+C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\KEDRTE\hook.cpp(75,11): warning C4459: declaration of 'greSetBkMode' hides global declaration
+      C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\KEDRTE\hook.cpp(19,16):
+      see declaration of 'greSetBkMode'
+  
+C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\KEDRTE\hook.cpp(78,11): warning C4459: declaration of 'greSetTextColor' hides global declaration
+      C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\KEDRTE\hook.cpp(18,19):
+      see declaration of 'greSetTextColor'
+  
+C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\KEDRTE\hook.cpp(82,11): warning C4459: declaration of 'greSetBkColor' hides global declaration
+      C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\KEDRTE\hook.cpp(16,17):
+      see declaration of 'greSetBkColor'
+  
+C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\KEDRTE\hook.cpp(295,19): warning C4267: 'argument': conversion from 'size_t' to 'UINT', possible loss of data
+C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\KEDRTE\hook.cpp(178,32): warning C4996: 'ExAllocatePool': ExAllocatePool is deprecated, use ExAllocatePool2.
   Memory.cpp
+C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\KEDRTE\Memory.cpp(232,16): warning C4305: 'return': truncation from 'NTSTATUS' to 'bool'
+C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\KEDRTE\Memory.cpp(342,14): warning C4189: 'statusAlloc': local variable is initialized but not referenced
   Generating Code...
-  KEDRTE.vcxproj -> C:\Users\Edi\source\repos\KEDRTE\x64\Release\KEDRTE.sys
+  KEDRTE.vcxproj -> C:\Users\Edi\Downloads\SSI-Dev\SSI-Dev\x64\Release\KEDRTE.sys
   Driver is 'Universal'.

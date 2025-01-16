@@ -98,7 +98,7 @@ PVOID get_system_module_export(LPCWSTR module_name, LPCSTR routine_name)
         ANSI_STRING currentModuleName;
         RtlInitAnsiString(&currentModuleName, (PCSZ)pMod[i].FullPathName);
 
-        DbgPrint("Checking module: %Z to see if it is: %X\n", &currentModuleName, &targetModuleName);
+        //DbgPrint("Checking module: %Z to see if it is: %X\n", &currentModuleName, &targetModuleName);
 
         // Compare module names (target module name with the current module)
         if (RtlCompareString(&targetModuleName, &currentModuleName, TRUE) == 0)
@@ -219,13 +219,19 @@ ULONG_PTR get_module_base_x64(PEPROCESS proc, UNICODE_STRING module_name)
 
 // Function to read kernel memory
 bool read_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t size) {
-    DbgPrint("Reading kernel memory: PID=%lu, Address=%p, Buffer=%p, Size=%zu\n", pid, (void*)address, buffer, size);
+    //DbgPrint("Reading kernel memory: PID=%lu, Address=%p, Buffer=%p, Size=%zu\n", pid, (void*)address, buffer, size);
 
     if (!address || !buffer || size == 0) {
-        DbgPrint("Invalid parameters.\n");
+        DbgPrint("Invalid parameters in read_kernel_memory.\n");
         return false;
     }
-
+    // Allocate a temporary buffer in kernel space
+    void* kernelBuffer = ExAllocatePool(NonPagedPool, size);
+    if (!kernelBuffer) {
+        DbgPrint("Failed to allocate kernel buffer.\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    kernelBuffer = buffer;
     PEPROCESS process;
     NTSTATUS status = PsLookupProcessByProcessId(pid, &process);
     if (!NT_SUCCESS(status)) {
@@ -239,7 +245,7 @@ bool read_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t size
         process,
         (void*)address,
         PsGetCurrentProcess(),
-        buffer,
+        kernelBuffer,
         size,
         KernelMode,
         &bytes
@@ -249,8 +255,8 @@ bool read_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t size
         DbgPrint("MmCopyVirtualMemory failed with status: 0x%X\n", status);
         return false;
     }
-
-    DbgPrint("Successfully copied %zu bytes from address %p\n", bytes, (void*)address);
+    RtlCopyMemory(buffer, kernelBuffer, bytes);
+    //DbgPrint("Successfully copied %zu bytes from address %p\n", bytes, (void*)address);
     return true;
 }
 
@@ -258,7 +264,7 @@ bool read_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, size_t size
 // Function to write to kernel memory
 bool write_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, SIZE_T size)
 {
-	DbgPrint("Writing to kernel memory: PID=%lu, Address=%p, Buffer=%p, Size=%u\n", pid, address, buffer, size);
+	//DbgPrint("Writing to kernel memory: PID=%lu, Address=%p, Buffer=%p, Size=%u\n", pid, address, buffer, size);
     if (!address || !buffer || !size)
     {
 		DbgPrint("Invalid parameters2.\n");
@@ -268,14 +274,14 @@ bool write_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, SIZE_T siz
     PEPROCESS process;
     NTSTATUS status = STATUS_SUCCESS;
     PsLookupProcessByProcessId(pid, &process);
-	DbgPrint("Lookup process status: %x\n", status);
+	//DbgPrint("Lookup process status: %x\n", status);
    
     KAPC_STATE state;
     KeStackAttachProcess((PEPROCESS)process, &state);
 
     MEMORY_BASIC_INFORMATION info;
     status = ZwQueryVirtualMemory(ZwCurrentProcess(), (PVOID)address, MemoryBasicInformation, &info, sizeof(info), NULL);
-	DbgPrint("Query virtual memory status: %x\n", status);
+	//DbgPrint("Query virtual memory status: %x\n", status);
     if (!NT_SUCCESS(status) || !(info.State & MEM_COMMIT) || (info.Protect & PAGE_NOACCESS)) {
         KeUnstackDetachProcess(&state);
 		DbgPrint("Failed to query virtual memory.\n");
@@ -294,12 +300,102 @@ bool write_kernel_memory(HANDLE pid, uintptr_t address, void* buffer, SIZE_T siz
 	}
 
     if ((info.Protect & PAGE_READWRITE) || (info.Protect & PAGE_EXECUTE_WRITECOPY) || (info.Protect & PAGE_EXECUTE_READWRITE)|| (info.Protect & PAGE_WRITECOPY)) {
-		DbgPrint("Memory is writable.\n");
+		//DbgPrint("Memory is writable.\n");
         RtlCopyMemory((void*)address, buffer, size);
 
     }
 
     KeUnstackDetachProcess(&state);
-	DbgPrint("Successfully wrote to kernel memory.\n");
+	//DbgPrint("Successfully wrote to kernel memory.\n");
     return true;
+}
+
+VOID FreeVirtualMemory(PVOID VirtualAddress, SIZE_T Size)
+{
+    // Check if the virtual address is valid
+    if (MmIsAddressValid(VirtualAddress))
+    {
+        // Attempt to free the virtual memory
+        NTSTATUS Status = ZwFreeVirtualMemory(NtCurrentProcess(), &VirtualAddress, &Size, MEM_RELEASE);
+
+        // Check if the memory release was successful
+        if (!NT_SUCCESS(Status)) {
+
+            //DbgPrint("[-] GDI.cpp Warning : Released memory failed.FreeVirtualMemory Internal Function\r\n");
+            //DbgPrint("[-] GDI.cpp Warning: Failed to free virtual memory. NTSTATUS: 0x%X\n", Status);
+            //DbgPrint("ZwFreeVirtualMemory Parameters:\n");
+            //DbgPrint("CurrentProcessHandele:%p", NtCurrentProcess());
+            //DbgPrint("BaseAddress: %p\n", VirtualAddress);
+            //DbgPrint("RegionSize: %zu\n", Size);
+            //DbgPrint("FreeType: %lu\n", MEM_RELEASE);
+        }
+        return;
+    }
+    // Log a warning message if the virtual address is not valid
+    //DbgPrint("[-] GDI.cpp Warning: Released memory does not exist.FreeVirtualMemory Internal Function\r\n");
+}
+
+PVOID AllocateVirtualMemory(SIZE_T Size)
+{
+    PVOID pMem = NULL; // Initialize pointer to NULL
+    // Allocate virtual memory with the specified size, commit the memory, and set it as read-write
+    NTSTATUS statusAlloc = ZwAllocateVirtualMemory(NtCurrentProcess(), &pMem, 0, &Size, MEM_COMMIT, PAGE_READWRITE);
+    // Return the pointer to the allocated memory
+    return pMem;
+}
+
+
+ULONG GetModuleSize(const char* moduleName) {
+    ULONG bytes = 0;
+    NTSTATUS status = ZwQuerySystemInformation(SystemModuleInformation, NULL, 0, &bytes);
+    if (status != STATUS_INFO_LENGTH_MISMATCH) {
+        return 0;
+    }
+
+    PRTL_PROCESS_MODULES modules = (PRTL_PROCESS_MODULES)ExAllocatePoolWithTag(NonPagedPool, bytes, 'LULN');
+    if (!modules) {
+        return 0;
+    }
+
+    status = ZwQuerySystemInformation(SystemModuleInformation, modules, bytes, &bytes);
+    if (!NT_SUCCESS(status)) {
+        ExFreePoolWithTag(modules, 'LULN');
+        return 0;
+    }
+
+    ULONG moduleSize = 0;
+    for (ULONG i = 0; i < modules->NumberOfModules; i++) {
+        if (strcmp((char*)modules->Modules[i].FullPathName, moduleName) == 0) {
+            moduleSize = modules->Modules[i].ImageSize;
+            break;
+        }
+    }
+
+    ExFreePoolWithTag(modules, 'LULN');
+    return moduleSize;
+}
+
+PVOID FindPatternInModule(const char* moduleName, const char* pattern, const char* mask) {
+    PVOID moduleBase = get_system_module_base(moduleName); // Custom implementation to retrieve module base
+    if (!moduleBase) {
+        DbgPrint("Failed to get module base for %s\n", moduleName);
+        return NULL;
+    }
+
+    ULONG moduleSize = GetModuleSize(moduleName); // Custom implementation to get module size
+
+    for (ULONG i = 0; i < moduleSize - strlen(mask); i++) {
+        BOOL found = TRUE;
+        for (ULONG j = 0; j < strlen(mask); j++) {
+            if (mask[j] != '?' && ((BYTE*)moduleBase)[i + j] != (BYTE)pattern[j]) {
+
+                found = FALSE;
+                break;
+            }
+        }
+        if (found) {
+            return (PVOID)((BYTE*)moduleBase + i);
+        }
+    }
+    return NULL;
 }
